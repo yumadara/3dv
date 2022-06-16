@@ -87,3 +87,14 @@ def generate_record(ann_rec: dict,
     return repro_rec
 
 
+def reverse_indexing_scene_names(nusc):
+    # name is the filename of the first front cam frame of the scene
+    name2token = {}
+    for i in range(len(nusc.scene)):
+        sample_data = nusc.get("sample_data", nusc.get("sample", nusc.scene[i]["first_sample_token"])["data"]["CAM_FRONT"])
+        sample_token = sample_data["sample_token"]
+        file_name = sample_data["filename"].split("/")[-1]
+        scene_token = nusc.get("sample", sample_token)["scene_token"]
+        assert file_name not in name2token
+        name2token[file_name] = scene_token
+    return name2token

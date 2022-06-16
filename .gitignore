@@ -1,3 +1,4 @@
 /dataset
 __pycache__
-
+.vscode
+/segmentation/centernet2_checkpoint.pth

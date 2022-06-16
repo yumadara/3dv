@@ -5,21 +5,95 @@ from nuscenes.nuscenes import NuScenes
 from pyquaternion.quaternion import Quaternion
 from nuscenes.utils.geometry_utils import view_points
 
-from nuscene_utils import generate_record, post_process_coords
+from nuscenes_helper.utils import generate_record, post_process_coords, reverse_indexing_scene_names
 
 
-
-class NuScenesExtractor:
-
+class NuScenesHelper:
     def __init__(self, version, dataroot, verbose=True):
         self.dataroot = os.path.abspath(dataroot)
         self.nusc = NuScenes(version=version, dataroot=dataroot, verbose=verbose)
+        self.frontcam_filename_to_scene_token = reverse_indexing_scene_names(self.nusc)
+    
+    def get_scene_token(self, frontcam_filename):
+        return self.frontcam_filename_to_scene_token[frontcam_filename]
 
     def get_num_scene(self):
         return len(self.nusc.scene)
+    
+    def get_frame_path(self, filename):
+         return os.path.join(self.dataroot, filename)
+     
+    def extract_cars_from_scene(self, frontcam_filename, visibilities):
+        visibilities = [str(i) for i in range(1,visibilities+1)]
+        scene_idx = self.nusc._token2ind["scene"][self.get_scene_token(frontcam_filename)]
+        scene_meta = self.nusc.scene[scene_idx]
+        scene_token = scene_meta["token"]
+        scene_name = scene_meta["name"]
+        scene_cars = []
+        first_sample_token = scene_meta["first_sample_token"]
+        current_sample_meta = self.nusc.get("sample", first_sample_token)
+        while current_sample_meta is not None:
+            sample_token = current_sample_meta["token"]
+            cars = self._get_cars_from_sample(current_sample_meta, visibilities)
+            scene_cars.append({
+                "sample_token":sample_token,
+                "cars":cars
+            })
+            next_token = current_sample_meta["next"]
+            if next_token == "":
+                current_sample_meta = None
+            else:
+                current_sample_meta = self.nusc.get("sample", next_token)
+        return scene_token, scene_name, scene_cars
+
+    def get_frame_paths_by_scene(self, frontcam_filename):
+        scene_token = self.get_scene_token(frontcam_filename)        
+        fs = self.nusc.get("scene", scene_token)["first_sample_token"]
+        sample = self.nusc.get("sample", fs)
+        file_names = []
+        while True:
+            for cam in sample["data"]:
+                if not cam.startswith("CAM"):
+                    continue
+                sample_data = self.nusc.get("sample_data", sample["data"][cam])
+                filename = sample_data["filename"]
+                file_names.append(filename)
+            if sample["next"] == "":
+                break
+            sample = self.nusc.get("sample", sample["next"])
+        return file_names
+
+    def get_camera_info(self, cam_token):
+        data = self.nusc.get("sample_data", cam_token)
+        ego_pose_token = data["ego_pose_token"]
+        calibrated_sensor_token = data["calibrated_sensor_token"]
+        height = data["height"]
+        width = data["width"]
+        
+        calibrated_sensor = self.nusc.get("calibrated_sensor", calibrated_sensor_token)
+        clb_translation = calibrated_sensor["translation"]
+        clb_rotation = calibrated_sensor["rotation"]
+        camera_intrinsic = calibrated_sensor["camera_intrinsic"]
+        
+        ego_pose = self.nusc.get("ego_pose", ego_pose_token)
+        ego_rotation = ego_pose["rotation"]
+        ego_translation = ego_pose["translation"]
+        
+        ret = {
+            "height": height,
+            "width": width,
+            "ego_pose_token": ego_pose_token,
+            "calibrated_sensor_token": calibrated_sensor_token,
+            "calibrated_translation":clb_translation,
+            "calibrated_rotation":clb_rotation,
+            "camera_intrinsic":camera_intrinsic,
+            "ego_rotation":ego_rotation,
+            "ego_translation":ego_translation
+               }
+        return ret
 
 
-    def get_2d_boxes(self, sample_data_token, visibilities):
+    def _get_2d_boxes(self, sample_data_token, visibilities):
         """
         Get the 2D annotation records for a given `sample_data_token`.
         :param sample_data_token: Sample data token belonging to a camera keyframe.
@@ -86,29 +160,7 @@ class NuScenesExtractor:
 
         return repro_recs
 
-
-    def extract_cars_from_scene(self, scene_idx, visibilities=["1", "2", "3", "4"]):
-        scene_meta = self.nusc.scene[scene_idx]
-        scene_token = scene_meta["token"]
-        scene_name = scene_meta["name"]
-        scene_cars = []
-        first_sample_token = scene_meta["first_sample_token"]
-        current_sample_meta = self.nusc.get("sample", first_sample_token)
-        while current_sample_meta is not None:
-            sample_token = current_sample_meta["token"]
-            cars = self.get_cars_from_sample(current_sample_meta, visibilities)
-            scene_cars.append({
-                "sample_token":sample_token,
-                "cars":cars
-            })
-            next_token = current_sample_meta["next"]
-            if next_token == "":
-                current_sample_meta = None
-            else:
-                current_sample_meta = self.nusc.get("sample", next_token)
-        return scene_token, scene_name, scene_cars
-
-    def get_cars_from_sample(self, sample_meta, visibilities=["1", "2", "3", "4"]):
+    def _get_cars_from_sample(self, sample_meta, visibilities=["1", "2", "3", "4"]):
         """
         Returns list of cars as tuple in the format of (instance_token, anno_token, 2D bbox)
         for given frame.
@@ -118,7 +170,7 @@ class NuScenesExtractor:
         for cam_type, cam_token in data.items():
             if not cam_type.startswith("CAM"):
                 continue
-            cars_2d = self.get_2d_boxes(cam_token, visibilities=visibilities)
+            cars_2d = self._get_2d_boxes(cam_token, visibilities=visibilities)
             for car2d in cars_2d:
                 category = car2d["category_name"]
                 if category.split(".")[1] != "car":
@@ -135,36 +187,3 @@ class NuScenesExtractor:
                 })
         return cars
 
-
-    def get_frame_path(self, filename):
-         return os.path.join(self.dataroot, filename)
-
-
-    def get_camera_info(self, cam_token):
-        data = self.nusc.get("sample_data", cam_token)
-        ego_pose_token = data["ego_pose_token"]
-        calibrated_sensor_token = data["calibrated_sensor_token"]
-        height = data["height"]
-        width = data["width"]
-        
-        calibrated_sensor = self.nusc.get("calibrated_sensor", calibrated_sensor_token)
-        clb_translation = calibrated_sensor["translation"]
-        clb_rotation = calibrated_sensor["rotation"]
-        camera_intrinsic = calibrated_sensor["camera_intrinsic"]
-        
-        ego_pose = self.nusc.get("ego_pose", ego_pose_token)
-        ego_rotation = ego_pose["rotation"]
-        ego_translation = ego_pose["translation"]
-        
-        ret = {
-            "height": height,
-            "width": width,
-            "ego_pose_token": ego_pose_token,
-            "calibrated_sensor_token": calibrated_sensor_token,
-            "calibrated_translation":clb_translation,
-            "calibrated_rotation":clb_rotation,
-            "camera_intrinsic":camera_intrinsic,
-            "ego_rotation":ego_rotation,
-            "ego_translation":ego_translation
-               }
-        return ret
