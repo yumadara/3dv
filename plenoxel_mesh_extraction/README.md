@@ -1,0 +1,3 @@
+- put mesh_exporter inside the project directory (e.g: svox2/opt)
+- install pyvista
+- run file; the single argument is the path to npz of the pretrained model
