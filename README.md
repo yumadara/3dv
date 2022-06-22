@@ -14,4 +14,5 @@ Running this script will create a new folder named {dataset_name}_processed whic
 information (frames, masks and camera parameters) for the cars in the given scenes.
 
 ## Preparing data for Plenoxels
-not implemented yet.
+1. Install COLMAP  (https://colmap.github.io/install.html)
+2. Run plenoxels_prepare.py. Give the path of the cars as a list named "processed_car_folders" in the code.
