@@ -1,4 +1,5 @@
 import os, glob, json, shutil, tqdm, cv2
+import numpy as np
 
 processed_car_folders = [
     "dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/c1958768d48640948f6053d04cffd35b",
@@ -25,7 +26,7 @@ def preprocess(folders, crop=False):
             new_path = os.path.join(colmap_out_folder, "raw", str(i).zfill(5)+"."+ext)
             new_path_masked = os.path.join(colmap_out_folder, "images", str(i).zfill(5)+"."+ext)
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
-            img = cv2.imread(img_path)*mask
+            img = cv2.imread(img_path)*mask + 255*np.logical_not(mask)
             if crop:
                 bbox = list(map(int, frame_data["bbox_corners"]))
                 img = img[bbox[1]:bbox[3],bbox[0]:bbox[2],:]
