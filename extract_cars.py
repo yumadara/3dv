@@ -48,6 +48,13 @@ if __name__ == "__main__":
                 mask = masks[max_id]
                 camera_info = db_util.get_camera_info(car["cam_token"])
                 car.update(camera_info)
+                P = np.array(car["P"])
+                car_box_3d_world = db_util.nusc.get_box(car['anno_token']).corners()
+                car_box_3d_cam = np.ones((4,8)) 
+                car_box_3d_cam[:3,:] = car_box_3d_world
+                car_box_3d_cam = (P@car_box_3d_cam)[:-1,:].tolist()
+                car_box_3d_world = car_box_3d_world.tolist()
+                car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
                 os.makedirs(car_folder, exist_ok=True)
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)

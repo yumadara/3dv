@@ -5,7 +5,7 @@ from nuscenes.nuscenes import NuScenes
 from pyquaternion.quaternion import Quaternion
 from nuscenes.utils.geometry_utils import view_points
 
-from nuscenes_helper.utils import generate_record, post_process_coords, reverse_indexing_scene_names
+from nuscenes_helper.utils import *
 
 
 class NuScenesHelper:
@@ -79,6 +79,20 @@ class NuScenesHelper:
         ego_rotation = ego_pose["rotation"]
         ego_translation = ego_pose["translation"]
         
+        # Get the calibrated sensor and ego pose record to get the transformation matrices.
+        # 1st transformation
+        P1 = np.eye(4)
+        R1 = quaternion_rotation_matrix(ego_pose['rotation']).T
+        t1 = np.array(ego_pose['translation']).reshape(3,1)
+        P1[:3,:3] = R1
+        P1[:3,-1] = -(R1@t1).reshape(-1)
+        # 2nd transformation
+        P2 = np.eye(4)
+        R2 = quaternion_rotation_matrix(calibrated_sensor['rotation']).T
+        t2 = np.array(calibrated_sensor['translation']).reshape(3,1)
+        P2[:3,:3] = R2
+        P2[:3,-1] = -(R2@t2).reshape(-1)
+        P = P2@P1
         ret = {
             "height": height,
             "width": width,
@@ -88,7 +102,8 @@ class NuScenesHelper:
             "calibrated_rotation":clb_rotation,
             "camera_intrinsic":camera_intrinsic,
             "ego_rotation":ego_rotation,
-            "ego_translation":ego_translation
+            "ego_translation":ego_translation,
+            "P": P.tolist(),
                }
         return ret
 
