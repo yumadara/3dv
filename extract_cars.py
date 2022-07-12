@@ -48,6 +48,7 @@ if __name__ == "__main__":
                 mask = masks[max_id]
                 camera_info = db_util.get_camera_info(car["cam_token"])
                 car.update(camera_info)
+                
                 P = np.array(car["P"])
                 car_box_3d_world = db_util.nusc.get_box(car['anno_token']).corners()
                 car_box_3d_cam = np.ones((4,8)) 
@@ -55,6 +56,14 @@ if __name__ == "__main__":
                 car_box_3d_cam = (P@car_box_3d_cam)[:-1,:].tolist()
                 car_box_3d_world = car_box_3d_world.tolist()
                 car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
+
+                car_box_3d_world = np.array(car_box_3d_world)
+                plane_point_pairs = [[0,1], [2,3], [4,5], [6,7]]
+                plane_points = []
+                for pair1, pair2 in plane_point_pairs:
+                    plane_points.append((car_box_3d_world[:,pair1]+car_box_3d_world[:,pair2])/2)
+                car.update({"cutting_plane":np.array(plane_points).tolist()})
+
                 os.makedirs(car_folder, exist_ok=True)
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)

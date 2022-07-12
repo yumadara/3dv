@@ -17,6 +17,46 @@ import numpy as np
 from shapely.geometry import MultiPoint, box
 
 
+class Plane:
+    def __init__(self, p1, p2, p3):
+        p1, p2, p3 = np.array(p1), np.array(p2), np.array(p3)
+        v1 = p2 - p3
+        v2 = p2 - p1
+        normal = np.cross(v1, v2)
+        self.normal = normal/np.linalg.norm(normal)
+        self.k = self.normal@p1
+        self.sym_mat = self.get_sym_mat()
+        print("Normal:", normal)
+        print("k:", self.k)
+        print("S:", self.sym_mat)
+        print()
+    
+    def angle(self, vec):
+        vec = np.array(vec)
+        # angle with the normal of plane
+        cos_theta = (vec @ self.normal) / np.linalg.norm(vec)
+        return np.arccos(cos_theta)
+
+    def dist(self, point):
+        # dist from point to plane
+        point = np.array(point)
+        return np.abs(point @ self.normal + self.k) 
+    
+    def get_sym_mat(self):
+        n = self.normal
+        S_R = np.eye(3)-2*np.outer(n,n)
+        S_t = 2*self.k*n
+        S = np.eye(4)
+        S[:3,:3] = S_R
+        S[:3,-1] = S_t
+        return S
+    
+    def get_sym_extr(self, original_ext):
+        P_sym = original_ext@self.sym_mat
+        P_sym[0,:] *= -1
+        return P_sym
+
+
 def post_process_coords(corner_coords: List,
                         imsize: Tuple[int, int] = (1600, 900)) -> Union[Tuple[float, float, float, float], None]:
     """

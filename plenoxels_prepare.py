@@ -1,10 +1,11 @@
 import os, glob, json, shutil, tqdm, cv2
 import numpy as np
+from nuscenes_helper.utils import Plane
 
 
 processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/61dd7d03d7ad466d89f901ed64e2c0dd"]
 
-def preprocess(folders, extract_poses=False, cam_type=None):
+def preprocess(folders, extract_poses=True, augment_sym=True, cam_type=None):
     out = []
     for folder in folders:
         car_id = folder.split("/")[-1]
@@ -27,17 +28,28 @@ def preprocess(folders, extract_poses=False, cam_type=None):
             ext = filename.split(".")[-1]
             new_path = os.path.join(colmap_out_folder, "raw", str(i).zfill(5)+"."+ext)
             new_path_masked = os.path.join(colmap_out_folder, "images", str(i).zfill(5)+"."+ext)
+            mask_path = os.path.join(colmap_out_folder, "masks", str(i).zfill(5)+"."+ext)
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
             img = cv2.imread(img_path)*mask + 255*np.logical_not(mask)
             shutil.copy2(img_path, new_path)
             cv2.imwrite(new_path_masked, img)
-            cv2.imwrite(os.path.join(colmap_out_folder, "masks", str(i).zfill(5)+"."+ext), mask.astype("uint8")*255)
+            cv2.imwrite(mask_path, mask.astype("uint8")*255)
+            if augment_sym:
+                sym_img = img[:,::-1,:]
+                sym_mask = mask[:,::-1,:]
+                cv2.imwrite(new_path_masked.replace("."+ext, "_sym."+ext), sym_img)
+                cv2.imwrite(mask_path.replace("."+ext, "_sym."+ext), sym_mask.astype("uint8")*255)
             if extract_poses:
                 P = np.array(frame_data["P"])
+                if augment_sym:
+                    plane_points = np.array(frame_data["cutting_plane"])
+                    plane = Plane(*plane_points[:3].tolist())
+                    P_sym = plane.get_sym_extr(P)
+                    np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+"_sym.txt"), P_sym)
                 camera_intrinsic = np.array(frame_data["camera_intrinsic"])
                 np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt"), P)
                 if not os.path.exists(os.path.join(colmap_out_folder, "intrinsics.txt")): # single cam?
-                    np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic) 
+                    np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
     return out
 
 
@@ -61,7 +73,7 @@ def run_colmap(folders):
 
 if __name__ == "__main__":
     # comment out the lines that you want to run
-    out_folders = preprocess(processed_car_folders, extract_poses=True, cam_type=None)
+    out_folders = preprocess(processed_car_folders, cam_type=None)
     #run_colmap(out_folders)
     for folder in out_folders:
         sparse_folder = os.path.join(folder, "sparse", "0")
