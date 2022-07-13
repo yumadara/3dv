@@ -2,8 +2,9 @@ import os
 
 import numpy as np
 from nuscenes.nuscenes import NuScenes
+from nuscenes.utils.data_classes import LidarPointCloud
 from pyquaternion.quaternion import Quaternion
-from nuscenes.utils.geometry_utils import view_points
+from nuscenes.utils.geometry_utils import view_points, points_in_box
 
 from nuscenes_helper.utils import *
 
@@ -65,6 +66,7 @@ class NuScenesHelper:
 
     def get_camera_info(self, cam_token):
         data = self.nusc.get("sample_data", cam_token)
+
         ego_pose_token = data["ego_pose_token"]
         calibrated_sensor_token = data["calibrated_sensor_token"]
         height = data["height"]
@@ -99,12 +101,86 @@ class NuScenesHelper:
             "ego_pose_token": ego_pose_token,
             "calibrated_sensor_token": calibrated_sensor_token,
             "calibrated_translation":clb_translation,
-            "calibrated_rotation":clb_rotation,
+            "calibrated_rotation": clb_rotation,
             "camera_intrinsic":camera_intrinsic,
             "ego_rotation":ego_rotation,
             "ego_translation":ego_translation,
             "P": P.tolist(),
                }
+        return ret
+
+    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world):
+        data = self.nusc.get("sample_data", lidar_token)
+
+        lidar_filename = "./dataset/v1.0-mini/" + data['filename']#TODO correct how this name is being appended
+
+        #4xn
+        lidar_points = LidarPointCloud.from_file(lidar_filename)
+        
+        #First we transform the points to world coordinate ((lidar->ego) and then (ego->world))
+        calibrated_sensor_token = data["calibrated_sensor_token"]
+        calibrated_sensor = self.nusc.get("calibrated_sensor", calibrated_sensor_token)
+        R1 = quaternion_rotation_matrix(calibrated_sensor['rotation'])
+        t1 = np.array(calibrated_sensor['translation'])
+        lid_to_ego = np.eye(4)
+        lid_to_ego[:3, :3] = R1
+        lid_to_ego[:3, -1] = t1
+
+        ego_pose_token = data["ego_pose_token"]
+        ego_pose = self.nusc.get("ego_pose", ego_pose_token)
+        R2 = quaternion_rotation_matrix(ego_pose['rotation'])
+        t2 = np.array(ego_pose['translation'])
+        ego_to_world = np.eye(4)
+        ego_to_world[:3, :3] = R2
+        ego_to_world[:3, -1] = t2
+        
+        lid_to_world = ego_to_world @ lid_to_ego
+        
+        temp_coords = np.ones_like(lidar_points.points)
+        temp_coords[:3, :] = lidar_points.points[:3, :]
+        lidar_world = lid_to_world @ temp_coords
+        
+        
+        #Now we select the correct ones
+        bb = np.array(bounding_box_world)
+        p1 = bb[:, 0]
+        p_x = bb[:, 4]
+        p_y = bb[:, 1]
+        p_z = bb[:, 3]
+
+        i = p_x - p1
+        j = p_y - p1
+        k = p_z - p1
+
+        v = lidar_world[:3, :] - p1.reshape((-1, 1))
+
+        iv = np.dot(i, v)
+        jv = np.dot(j, v)
+        kv = np.dot(k, v)
+
+        mask_x = np.logical_and(0 <= iv, iv <= np.dot(i, i))
+        mask_y = np.logical_and(0 <= jv, jv <= np.dot(j, j))
+        mask_z = np.logical_and(0 <= kv, kv <= np.dot(k, k))
+        mask = np.logical_and(np.logical_and(mask_x, mask_y), mask_z)
+
+        lidar_world_in = lidar_world[:, mask]
+
+        #Now we transform them to camera space
+        lidar_cam_in = cam_world_to_cam @ lidar_world_in
+
+        #change last coordinate for the intensity
+        lidar_world_in[-1, :] = (lidar_points.points[:, mask])[-1, :]
+        lidar_cam_in[-1, :] = (lidar_points.points[:, mask])[-1, :]
+        lidar_world[-1, :] = lidar_points.points[-1, :]
+
+        #print(lidar_world_in.shape)
+
+        ret = {
+            "lidar_to_world": 1,
+            "lidar_world_in":lidar_world_in.tolist(),
+            "lidar_cam_in":lidar_cam_in.tolist(),
+            "lidar_world_all":lidar_world.tolist()
+        }
         return ret
 
 
@@ -181,7 +257,8 @@ class NuScenesHelper:
         for given frame.
         """
         cars = []
-        data = sample_meta["data"] # todo get camera parameters and visibility information
+        data = sample_meta["data"]# todo get camera parameters and visibility information
+        data_lidar_token = data ["LIDAR_TOP"]
         for cam_type, cam_token in data.items():
             if not cam_type.startswith("CAM"):
                 continue
@@ -198,7 +275,8 @@ class NuScenesHelper:
                     "bbox_corners":car2d["bbox_corners"],
                     "visibility":car2d["visibility_token"],
                     "cam_type": cam_type,
-                    "cam_token": cam_token
+                    "cam_token": cam_token,
+                    "lidar_token": data_lidar_token
                 })
         return cars
 
