@@ -47,6 +47,7 @@ if __name__ == "__main__":
                     continue
                 mask = masks[max_id]
                 camera_info = db_util.get_camera_info(car["cam_token"])
+
                 car.update(camera_info)
                 
                 P = np.array(car["P"])
@@ -56,6 +57,11 @@ if __name__ == "__main__":
                 car_box_3d_cam = (P@car_box_3d_cam)[:-1,:].tolist()
                 car_box_3d_world = car_box_3d_world.tolist()
                 car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
+
+                lidar_info = db_util.get_lidar_info(car["lidar_token"],
+                                                    cam_world_to_cam=camera_info["P"],
+                                                    bounding_box_world=car_box_3d_world)
+                car.update(lidar_info)
 
                 car_box_3d_world = np.array(car_box_3d_world)
                 plane_point_pairs = [[0,1], [2,3], [4,5], [6,7]]

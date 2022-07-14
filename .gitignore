@@ -2,3 +2,4 @@
 __pycache__
 .vscode
 /segmentation/centernet2_checkpoint.pth
+.idea
