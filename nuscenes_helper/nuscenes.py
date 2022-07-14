@@ -176,7 +176,7 @@ class NuScenesHelper:
         #print(lidar_world_in.shape)
 
         ret = {
-            "lidar_to_world": 1,
+            "lidar_to_world": lidar_world.tolist(),
             "lidar_world_in":lidar_world_in.tolist(),
             "lidar_cam_in":lidar_cam_in.tolist(),
             "lidar_world_all":lidar_world.tolist()
