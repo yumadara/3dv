@@ -5,9 +5,13 @@ from nuscenes_helper.nuscenes import NuScenesHelper
 from segmentation.api import CenterNetAPI
 
 ## Parameters   ##
-scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg"]
-dataset_folder = "./dataset/v1.0-mini"
-dataset_version = "v1.0-mini"
+scene_filenames = [#"n008-2018-05-21-11-06-59-0400__CAM_FRONT__1526915243012465.jpg",
+                   "n008-2018-05-21-11-06-59-0400__CAM_FRONT__1526915452012476.jpg",]
+                   #"n008-2018-05-21-11-06-59-0400__CAM_FRONT__1526915617012465.jpg",
+                   #"n008-2018-07-26-12-13-50-0400__CAM_FRONT__1532621788662404.jpg",
+                   #"n008-2018-07-26-12-13-50-0400__CAM_FRONT__1532621914612404.jpg"]
+dataset_folder = "./dataset/v1.0-trainval02_blobs"
+dataset_version = "v1.0-trainval"
 
 
 if __name__ == "__main__":
