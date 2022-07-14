@@ -66,14 +66,15 @@ def augment_sym():
             sym_mask = mask[:,::-1,:]
             cv2.imwrite(new_path_masked.replace("."+ext, "_sym."+ext), sym_img)
             cv2.imwrite(mask_path.replace("."+ext, "_sym."+ext), sym_mask.astype("uint8")*255)
-            P = np.array(frame_data["P"])
+            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt")
+            P = np.loadtxt(pose_path).reshape(4, 4)
             plane_points = np.array(frame_data["cutting_plane"])
             plane = Plane(*plane_points[:3].tolist())
             P_sym = plane.get_sym_extr(P)
-            np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+"_sym.txt"), P_sym)
+            np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym)
 
 
-def run_colmap():
+def run_colmap(processed_car_folders):
     for folder in processed_car_folders:
         if folder[-1] == "/":
             folder = folder[:-1]
@@ -92,8 +93,6 @@ def run_colmap():
 
 if __name__ == "__main__":
     out_folders = preprocess()
-    if augment:
-        augment_sym()
     if not use_nuscene_poses:
         run_colmap(out_folders)
         for folder in out_folders:
@@ -102,3 +101,5 @@ if __name__ == "__main__":
             split_cmd = f"python3 svox2/opt/scripts/create_split.py -y {folder}"
             os.system(colmap2nsvf_cmd)
             #os.system(split_cmd)
+    if augment:
+        augment_sym()
