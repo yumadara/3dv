@@ -7,6 +7,8 @@ processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f98491
 use_nuscene_poses = True
 augment = True
 cam_type = None
+extract_lidar=True
+mask_png_ext=False
 ##################
 
 
@@ -22,6 +24,8 @@ def preprocess():
         os.makedirs(os.path.join(colmap_out_folder, "masks"), exist_ok=True)
         if use_nuscene_poses:
             os.makedirs(os.path.join(colmap_out_folder, "pose"), exist_ok=True)
+        if extract_lidar:
+            os.makedirs(os.path.join(colmap_out_folder, "lidar"), exist_ok=True)
         for i, json_path in tqdm.tqdm(enumerate(json_paths)):
             with open(json_path, "r") as f:
                 frame_data = json.load(f)
@@ -36,8 +40,11 @@ def preprocess():
             mask_path = os.path.join(colmap_out_folder, "masks", str(i).zfill(5)+"."+ext)
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
             img = cv2.imread(img_path)*mask + 255*np.logical_not(mask)
+            img_raw = cv2.imread(img_path)
             shutil.copy2(img_path, new_path)
             cv2.imwrite(new_path_masked, img)
+            if mask_png_ext:
+                mask_path = mask_path + ".png"
             cv2.imwrite(mask_path, mask.astype("uint8")*255)
             if use_nuscene_poses:
                 P = np.array(frame_data["P"])
@@ -47,6 +54,25 @@ def preprocess():
                 np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt"), P)
                 if not os.path.exists(os.path.join(colmap_out_folder, "intrinsics.txt")): # single cam?
                     np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
+            if extract_lidar:
+                lidar_points = np.array(frame_data['lidar_cam_in'])
+                np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + ".txt"), lidar_points)
+                #TODO implement in the other function
+                # if augment_sym:
+                #     P = np.array(frame_data["P"])
+                #     plane_points = np.array(frame_data["cutting_plane"])
+                #     plane = Plane(*plane_points[:3].tolist())
+                #     P_sym = plane.get_sym_extr(P)
+                #     #since P sym needs points in world space need to load the points in world space
+                #     lidar_points_w = np.array(frame_data['lidar_world_in'])
+                #     lidar_points_w_coords = np.zeros_like(lidar_points_w)
+                #     lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+                #     lidar_points_c_sym = P_sym @ lidar_points_w_coords
+                #     #put back intensity value
+                #     lidar_points_c_sym[-1, :] = lidar_points_w[-1, :]
+                #     np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt"), lidar_points_c_sym)
+
+                pass
     return out
 
 def augment_sym():
