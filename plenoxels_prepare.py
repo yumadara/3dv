@@ -48,7 +48,9 @@ def preprocess():
             cv2.imwrite(mask_path, mask.astype("uint8")*255)
             if use_nuscene_poses:
                 P = np.array(frame_data["P"])
-                camera_intrinsic = np.array(frame_data["camera_intrinsic"])
+                camera_intrinsic_ns = np.array(frame_data["camera_intrinsic"])
+                camera_intrinsic = np.eye(4)
+                camera_intrinsic[:3,:3] = camera_intrinsic_ns
                 np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt"), P)
                 if not os.path.exists(os.path.join(colmap_out_folder, "intrinsics.txt")): # single cam?
                     np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
