@@ -58,9 +58,12 @@ if __name__ == "__main__":
                 car_box_3d_world = car_box_3d_world.tolist()
                 car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
 
+
                 lidar_info = db_util.get_lidar_info(car["lidar_token"],
                                                     cam_world_to_cam=camera_info["P"],
-                                                    bounding_box_world=car_box_3d_world)
+                                                    bounding_box_world=car_box_3d_world,
+                                                    sample_token=sample_token,
+                                                    cam_info=camera_info)
                 car.update(lidar_info)
 
                 car_box_3d_world = np.array(car_box_3d_world)

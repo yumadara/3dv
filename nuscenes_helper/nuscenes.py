@@ -106,17 +106,28 @@ class NuScenesHelper:
             "ego_rotation":ego_rotation,
             "ego_translation":ego_translation,
             "P": P.tolist(),
+            "channel": data["channel"]
                }
         return ret
 
-    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world):
+    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, sample_token=None, cam_info=None):
         data = self.nusc.get("sample_data", lidar_token)
 
         lidar_filename = "./dataset/v1.0-mini/" + data['filename']#TODO correct how this name is being appended
+        #print(lidar_filename)
 
         #4xn
-        lidar_points = LidarPointCloud.from_file(lidar_filename)
-        
+        sample = self.nusc.get('sample', sample_token)
+        #lidar_points_or = LidarPointCloud.from_file(lidar_filename)
+        lidar_points, _ = LidarPointCloud.from_file_multisweep(self.nusc, sample, 'LIDAR_TOP', 'LIDAR_TOP',
+                                                                     nsweeps=3)
+
+        #print("____")
+        #print(lidalidar_points_orr_points_or.points.shape)
+        #print("vs")
+        #print(sample_token)
+        #print(lidar_points.points.shape)
+
         #First we transform the points to world coordinate ((lidar->ego) and then (ego->world))
         calibrated_sensor_token = data["calibrated_sensor_token"]
         calibrated_sensor = self.nusc.get("calibrated_sensor", calibrated_sensor_token)
@@ -168,12 +179,67 @@ class NuScenesHelper:
         #Now we transform them to camera space
         lidar_cam_in = cam_world_to_cam @ lidar_world_in
 
+
+
         #change last coordinate for the intensity
         lidar_world_in[-1, :] = (lidar_points.points[:, mask])[-1, :]
         lidar_cam_in[-1, :] = (lidar_points.points[:, mask])[-1, :]
         lidar_world[-1, :] = lidar_points.points[-1, :]
 
-        #print(lidar_world_in.shape)
+        _, N_in = lidar_world_in.shape
+
+        #print("but in")
+        #print((4, N_in))
+
+        lidar_lidar_in = lidar_points.points[:, mask]
+        lidar_point_in = LidarPointCloud(lidar_lidar_in)
+        if sample_token is not None and N_in < 5:#N_in > 400 and N_in < 500:
+            #from mpl_toolkits.mplot3d import Axes3D
+            #import matplotlib.pyplot as plt
+            # fig = plt.figure()
+            # # Add a 3d axis to the figure
+            # ax = fig.add_subplot(111, projection='3d')
+            #
+            #
+            #
+            # ax.scatter(lidar_world_in[0, :], lidar_world_in[1, :], lidar_world_in[2, :], color="blue")
+            #
+            # plane_point_pairs = [[0, 1], [1, 5], [5, 4], [4, 0], [3, 2], [2, 6], [6, 7], [7, 3],
+            #                      [2, 1], [3, 0], [4, 7], [6, 5]
+            #                      ]
+            #
+            # for pair1, pair2 in plane_point_pairs:
+            #     c1 = bb[:, pair1]
+            #     c2 = bb[:, pair2]
+            #     ax.plot3D(*zip(c1, c2), color='r')
+            #
+            # plt.show()
+            #
+            # fig = plt.figure()
+            # # Add a 3d axis to the figure
+            # ax = fig.add_subplot(111, projection='3d')
+            # ax.scatter(lidar_world[0, :], lidar_world[1, :], lidar_world[2, :], color="green")
+            # plane_point_pairs = [[0, 1], [1, 5], [5, 4], [4, 0], [3, 2], [2, 6], [6, 7], [7, 3],
+            #                      [2, 1], [3, 0], [4, 7], [6, 5]
+            #                      ]
+            #
+            # for pair1, pair2 in plane_point_pairs:
+            #     c1 = bb[:, pair1]
+            #     c2 = bb[:, pair2]
+            #     ax.plot3D(*zip(c1, c2), color='r')
+            #
+            # plt.show()
+            sample = self.nusc.get('sample', sample_token)
+            print("Warning, too few points !!!")
+            print(lidar_world_in.shape)
+
+            # self.nusc.render_pointcloud_in_image(sample_token, pointsensor_channel='LIDAR_TOP',
+            #                                      camera_channel=cam_info['channel'], dot_size=15,
+            #                                      pc_at_sensor_coords=lidar_point_in)
+            #self.nusc.render_sample_data(sample['data']['CAM_FRONT'])
+            #self.nusc.render_sample_data(sample['data']['LIDAR_TOP'], underlay_map=True)
+            #self.nusc.render_sample_data(sample['data']['LIDAR_TOP'], nsweeps=10, underlay_map=True)
+
 
         ret = {
             "lidar_to_world": lidar_world.tolist(),

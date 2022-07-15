@@ -54,22 +54,9 @@ def preprocess():
                     np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
             if extract_lidar:
                 lidar_points = np.array(frame_data['lidar_cam_in'])
+                lidar_to_world_matrix = np.array(frame_data['lidar_to_world'])
+                np.savetxt(os.path.join(colmap_out_folder, "lidar_to_world.txt"), lidar_to_world_matrix)
                 np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + ".txt"), lidar_points)
-                #TODO implement in the other function
-                # if augment_sym:
-                #     P = np.array(frame_data["P"])
-                #     plane_points = np.array(frame_data["cutting_plane"])
-                #     plane = Plane(*plane_points[:3].tolist())
-                #     P_sym = plane.get_sym_extr(P)
-                #     #since P sym needs points in world space need to load the points in world space
-                #     lidar_points_w = np.array(frame_data['lidar_world_in'])
-                #     lidar_points_w_coords = np.zeros_like(lidar_points_w)
-                #     lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
-                #     lidar_points_c_sym = P_sym @ lidar_points_w_coords
-                #     #put back intensity value
-                #     lidar_points_c_sym[-1, :] = lidar_points_w[-1, :]
-                #     np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt"), lidar_points_c_sym)
-
                 pass
     return out
 
@@ -98,6 +85,18 @@ def augment_sym():
             plane = Plane(*plane_points[:3].tolist())
             P_sym = plane.get_sym_extr(P)
             np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym)
+            if extract_lidar:
+                #since P sym needs points in world space need to load the points in world space
+                lidar_points_w = np.array(frame_data['lidar_world_in'])
+                lidar_points_w_coords = np.zeros_like(lidar_points_w)
+                lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+                #reflect points on plane
+                lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
+                #Express points in symmetric coordinate system
+                lidar_points_c_sym = P_sym @ lidar_points_w_sym
+                #put back intensity value
+                lidar_points_c_sym[-1, :] = lidar_points_w[-1, :]
+                np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt"), lidar_points_c_sym)
 
 
 def run_colmap(processed_car_folders):
