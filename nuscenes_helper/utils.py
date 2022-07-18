@@ -23,6 +23,7 @@ class Plane:
         v1 = p2 - p3
         v2 = p2 - p1
         normal = np.cross(v1, v2)
+        self.ref_point = p1
         self.normal = normal/np.linalg.norm(normal)
         self.k = self.normal@p1
         self.sym_mat = self.get_sym_mat()

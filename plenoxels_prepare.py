@@ -9,6 +9,7 @@ augment = True
 cam_type = None
 extract_lidar=True
 mask_png_ext=False
+visualize_gr = False
 ##################
 
 
@@ -62,6 +63,7 @@ def preprocess():
                 pass
     return out
 
+
 def augment_sym():
     for folder in processed_car_folders:
         car_id = folder.split("/")[-1]
@@ -90,7 +92,7 @@ def augment_sym():
             if extract_lidar:
                 #since P sym needs points in world space need to load the points in world space
                 lidar_points_w = np.array(frame_data['lidar_world_in'])
-                lidar_points_w_coords = np.zeros_like(lidar_points_w)
+                lidar_points_w_coords = np.ones_like(lidar_points_w)
                 lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
                 #reflect points on plane
                 lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
@@ -118,7 +120,118 @@ def run_colmap(processed_car_folders):
         os.system(mapper_cmd)
 
 
+def visualize():
+    from mpl_toolkits.mplot3d import Axes3D
+    import matplotlib.pyplot as plt
+
+    for folder in processed_car_folders:
+        car_id = folder.split("/")[-1]
+        colmap_out_folder = os.path.join("/".join(folder.split("/")[:-1]), "colmap_out", car_id)
+        json_paths = sorted(glob.glob(os.path.join(folder, "*.json")))
+        for i, json_path in tqdm.tqdm(enumerate(json_paths)):
+            with open(json_path, "r") as f:
+                frame_data = json.load(f)
+            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt")
+            plane_points = np.array(frame_data["cutting_plane"])
+            plane = Plane(*plane_points[:3].tolist())
+
+            #Load camera
+            P = np.loadtxt(pose_path).reshape(4, 4)#world to camera
+            c2w = np.linalg.inv(P)
+            cam_loc = c2w @ np.array([0., 0., 0., 1.])
+            cam_loc = cam_loc[:3]
+            cam_dir_Z = c2w @ np.array([0., 0., 1., 1.])
+            cam_dir_Z = cam_dir_Z[:3]
+            # load points of bounding box
+            bb = np.array(frame_data["car_box_3d_world"])
+
+            P_sym = plane.get_sym_extr(P)
+
+            c2w_sym = np.linalg.inv(P_sym)
+            cam_loc_sym = c2w_sym @ np.array([0., 0., 0., 1.])
+            cam_loc_sym = cam_loc_sym[:3]
+            cam_dir_Z_sym = c2w_sym @ np.array([0., 0., 1., 1.])
+            cam_dir_Z_sym = cam_dir_Z_sym[:3]
+
+
+            #load lidar points
+            lidar_points_w = np.array(frame_data['lidar_world_in'])
+            lidar_points_w_coords = np.ones_like(lidar_points_w)
+            lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+
+            lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
+
+            # ###################################################
+            #
+            # visualization
+            fig = plt.figure()
+            # Add a 3d axis to the figure
+            ax = fig.add_subplot(111, projection='3d')
+
+            #placing cameras
+            # ax.scatter([cam_loc[0], cam_dir_Z[0]],
+            #            [cam_loc[1], cam_dir_Z[1]],
+            #            [cam_loc[2], cam_dir_Z[2]], color='m')
+            # ax.plot3D(*zip(cam_loc, cam_dir_Z), color='m')
+            #
+            # ax.scatter([cam_loc_sym[0], cam_dir_Z_sym[0]],
+            #            [cam_loc_sym[1], cam_dir_Z_sym[1]],
+            #            [cam_loc_sym[2], cam_dir_Z_sym[2]], color='g')
+            # ax.plot3D(*zip(cam_loc_sym, cam_dir_Z_sym), color='g')
+
+            #normal points
+            ax.scatter(lidar_points_w_coords[0, :], lidar_points_w_coords[1, :], lidar_points_w_coords[2, :], color="blue")
+            #Symmetric points
+            ax.scatter(lidar_points_w_sym[0, :], lidar_points_w_sym[1, :], lidar_points_w_sym[2, :],
+                       color="yellow")
+
+            plane_point_pairs = [[0, 1], [1, 5], [5, 4], [4, 0], [3, 2], [2, 6], [6, 7], [7, 3],
+                                 [2, 1], [3, 0], [4, 7], [6, 5]
+                                 ]
+
+            for pair1, pair2 in plane_point_pairs:
+                c1 = bb[:, pair1]
+                c2 = bb[:, pair2]
+                ax.plot3D(*zip(c1, c2), color='r')
+
+            # ##plane
+            # d = -plane.ref_point.dot(plane.normal)
+            # xx, yy = np.meshgrid(range(200), range(200))
+            # zz = (-plane.normal[0] * xx - plane.normal[1]*yy - d) * 1. /plane.normal[2]
+            #
+            # # ax.plot_surface(xx, yy, zz)
+            plt.show()
+
+            #projection of lidar points to 2D
+            camera_intrinsics = np.array(frame_data["camera_intrinsic"])
+
+            temp_coords = P @ lidar_points_w_coords
+            lidar_points_c_coords_2D = temp_coords[:3, :] / temp_coords[2, :]
+            lidar_points_c_coords_2D = camera_intrinsics @ lidar_points_c_coords_2D
+
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.scatter(lidar_points_c_coords_2D[0, :],
+                        lidar_points_c_coords_2D[1, :], color='blue')
+
+            #Now symetric
+            temp_coords_sym = P_sym @ lidar_points_w_sym
+            lidar_points_c_coords_2D_sym = temp_coords_sym[:3, :] / temp_coords_sym[2, :]
+            lidar_points_c_coords_2D_sym = camera_intrinsics @ lidar_points_c_coords_2D_sym
+            ax2.scatter(lidar_points_c_coords_2D_sym[0, :],
+                        lidar_points_c_coords_2D_sym[1, :], color='yellow')
+            plt.show()
+            _, N = temp_coords_sym.shape
+            for j in range(N):
+                b = np.isclose(temp_coords[2, j], temp_coords_sym[2, j])
+                if not b:
+                    print("Points ", temp_coords[:, j], " and ", temp_coords_sym[:, j], "differ in depth")
+
+
 if __name__ == "__main__":
+    if visualize_gr:
+        visualize()
+        exit()
+
     out_folders = preprocess()
     if not use_nuscene_poses:
         run_colmap(out_folders)

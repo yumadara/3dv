@@ -201,6 +201,19 @@ def main():
         default=100000,
         help="use at most first x cameras for procrustes. Useful if trajectory starts to diverge",
     )
+    parser.add_argument(
+        "--tr_c2w",
+        action="store_true",
+        default=False,
+        help="use if the input poses are w2c format and need to be transformed",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8889,
+        help="port for display",
+    )
+
     args = parser.parse_args()
 
     dataset_name = path.basename(path.abspath(args.data_dir))
@@ -231,6 +244,8 @@ def main():
     all_poses = []
     for i, pose_file in enumerate(pose_files):
         pose = np.loadtxt(path.join(pose_dir, pose_file)).reshape(4, 4)
+        if args.tr_c2w:
+            pose = np.linalg.inv(pose)
         #  splt = path.splitext(pose_file)[0].split('_')
         #  num = int(splt[1] if len(splt) > 1 else splt[0])
         all_poses.append(pose)
@@ -344,6 +359,11 @@ def main():
         r = R.reshape(-1, 9)
         r_gt = R_gt.reshape(-1, 9)
 
+        # transform = align_procrustes_rt(
+        #         t_gt[pose_gt_inds], r_gt[pose_gt_inds],
+        #         t, use_first_k=args.n_cameras_for_procrustes, want_transform=True)
+
+        #t_gt, r_gt = transform(t_gt, r_gt)
         transform = align_procrustes_rt(
                 t_gt[pose_gt_inds], r_gt[pose_gt_inds],
                 t, r, use_first_k=args.n_cameras_for_procrustes, want_transform=True)
@@ -374,7 +394,7 @@ def main():
     scene.add_sphere("Unit Sphere", visible=False)
     scene.add_cube("Unit Cube", scale=2, visible=False)
     print('WRITING', out_dir)
-    scene.display(out_dir, world_up=world_up, cam_origin=origin, cam_center=center, cam_forward=vforward)
+    scene.display(out_dir, world_up=world_up, cam_origin=origin, cam_center=center, cam_forward=vforward, port=args.port)
 
 
 
