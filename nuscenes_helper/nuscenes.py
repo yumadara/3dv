@@ -95,6 +95,36 @@ class NuScenesHelper:
         P2[:3,:3] = R2
         P2[:3,-1] = -(R2@t2).reshape(-1)
         P = P2@P1
+        
+        
+        ## colmap format fix
+        #P[:3,-1] = -P[:3,:3].T@P[:3,-1]
+        R_w2c = P[:3,:3]
+        t_w2c = P[:3,-1].reshape(3,1)
+        """
+        #print(R_w2c, t_w2c)
+        P = np.linalg.inv(P)
+        R_c2w = P[:3,:3]
+        t_c2w = P[:3,-1].reshape(3,1)
+        print(R_c2w, t_c2w)
+        """
+        R_c2w, t_c2w = R_w2c.T, -R_w2c.T@t_w2c
+        
+
+        #t_world = -R_w2c@t_w2c
+        #[-1.55208194  0.02911663  3.70275983] 8.366715640918061
+        # [ 0.55772764 -0.54403343 10.41659385] 5.8048647975004
+        #cen = np.array([-1.55208194,  0.02911663,  3.70275983])
+        #meddist = 8.366715640918061
+        #t_c2w = (t_c2w - cen[:, None]) * 2 / meddist
+        P = np.concatenate([np.concatenate([R_c2w, t_c2w], 1), np.array([0, 0, 0, 1.0]).\
+            reshape([1, 4])], 0)
+        #P[0:3,2] *= -1 # flip the y and z axis
+        #P[0:3,1] *= -1
+        #P = P[[1,0,2,3],:] # swap y and z
+        #P[2,:] *= -1 # flip whole world upside down
+        #Rt = np.matmul(so3, -r)                                                                                                                                                                                                                                                                                        
+        #P = np.vstack((np.hstack((so3.T, -r.reshape(-1, 1))), [0, 0, 0, 1]))
         ret = {
             "height": height,
             "width": width,
