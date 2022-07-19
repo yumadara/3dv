@@ -306,7 +306,7 @@ def main():
     intrins = np.loadtxt(intrin_path)
     focal = (intrins[0, 0] + intrins[1, 1]) * 0.5
     image_wh = get_image_size(path.join(images_dir, image_files[0]))
-
+    #image_wh = image_wh[0]/10, image_wh[1]/10
     scene = Scene("colmap dataset: " + dataset_name)
 
 
