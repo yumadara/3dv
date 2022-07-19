@@ -140,7 +140,7 @@ class NuScenesHelper:
                }
         return ret
 
-    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, sample_token=None, cam_info=None):
+    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, sample_token=None):
         data = self.nusc.get("sample_data", lidar_token)
 
         lidar_filename = "./dataset/v1.0-mini/" + data['filename']#TODO correct how this name is being appended

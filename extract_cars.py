@@ -13,6 +13,7 @@ dataset_folder = "./dataset/v1.0-mini"
 dataset_version = "v1.0-mini"
 visibility = 4 # 1 (no filter), 2, 3, 4 (only the most visible ones)
 iou_thresh = 0.7 # threshold to match instance seg bbox and nuscenes bbox
+extract_lidar = True
 
 if __name__ == "__main__":
     db_util = NuScenesHelper(dataset_version, dataset_folder)
@@ -50,7 +51,7 @@ if __name__ == "__main__":
 
                 car.update(camera_info)
                 
-                P = np.array(car["P"])
+                P = np.linalg.inv(np.array(car["P"]))
                 car_box_3d_world = db_util.nusc.get_box(car['anno_token']).corners()
                 car_box_3d_cam = np.ones((4,8)) 
                 car_box_3d_cam[:3,:] = car_box_3d_world
@@ -58,13 +59,12 @@ if __name__ == "__main__":
                 car_box_3d_world = car_box_3d_world.tolist()
                 car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
 
-
-                lidar_info = db_util.get_lidar_info(car["lidar_token"],
-                                                    cam_world_to_cam=camera_info["P"],
-                                                    bounding_box_world=car_box_3d_world,
-                                                    sample_token=sample_token,
-                                                    cam_info=camera_info)
-                car.update(lidar_info)
+                if extract_lidar:
+                    lidar_info = db_util.get_lidar_info(car["lidar_token"],
+                                                        cam_world_to_cam=P,
+                                                        bounding_box_world=car_box_3d_world,
+                                                        sample_token=sample_token)
+                    car.update(lidar_info)
 
                 car_box_3d_world = np.array(car_box_3d_world)
                 plane_point_pairs = [[0,1], [2,3], [4,5], [6,7]]

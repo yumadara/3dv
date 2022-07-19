@@ -53,8 +53,10 @@ class Plane:
         return S
     
     def get_sym_extr(self, original_ext):
+        original_ext = np.linalg.inv(original_ext)
         P_sym = original_ext@self.sym_mat
         P_sym[0,:] *= -1
+        P_sym = np.linalg.inv(P_sym)
         return P_sym
 
 

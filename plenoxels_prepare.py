@@ -9,7 +9,7 @@ augment = True
 cam_type = None
 extract_lidar=True
 mask_png_ext=False
-visualize_gr = False
+visualize_gr = True
 ##################
 
 
@@ -137,6 +137,7 @@ def visualize():
 
             #Load camera
             P = np.loadtxt(pose_path).reshape(4, 4)#world to camera
+            P = np.linalg.inv(P)
             c2w = np.linalg.inv(P)
             cam_loc = c2w @ np.array([0., 0., 0., 1.])
             cam_loc = cam_loc[:3]
