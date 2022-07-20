@@ -4,6 +4,7 @@ from nuscenes_helper.utils import Plane
 
 ### Parameters ###
 processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/61dd7d03d7ad466d89f901ed64e2c0dd"]
+#processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/*")
 use_nuscene_poses = True
 augment = True
 cam_type = None
@@ -41,7 +42,6 @@ def preprocess():
             mask_path = os.path.join(colmap_out_folder, "masks", str(i).zfill(5)+"."+ext)
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
             img = cv2.imread(img_path)*mask + 255*np.logical_not(mask)
-            img_raw = cv2.imread(img_path)
             shutil.copy2(img_path, new_path)
             cv2.imwrite(new_path_masked, img)
             if mask_png_ext:
@@ -87,8 +87,8 @@ def augment_sym():
             P = np.loadtxt(pose_path).reshape(4, 4)
             plane_points = np.array(frame_data["cutting_plane"])
             plane = Plane(*plane_points[:3].tolist())
-            P_sym = plane.get_sym_extr(P)
-            np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym)
+            P_sym_c2w = plane.get_sym_extr(P)
+            np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym_c2w)
             if extract_lidar:
                 #since P sym needs points in world space need to load the points in world space
                 lidar_points_w = np.array(frame_data['lidar_world_in'])
@@ -97,7 +97,7 @@ def augment_sym():
                 #reflect points on plane
                 lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
                 #Express points in symmetric coordinate system
-                lidar_points_c_sym = P_sym @ lidar_points_w_sym
+                lidar_points_c_sym = np.linalg.inv(P_sym_c2w) @ lidar_points_w_sym
                 #put back intensity value
                 lidar_points_c_sym[-1, :] = lidar_points_w[-1, :]
                 np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt"), lidar_points_c_sym)
@@ -110,10 +110,6 @@ def run_colmap(processed_car_folders):
         extractor_cmd = f"colmap feature_extractor --database_path={folder}/database.db --image_path={folder}/raw --ImageReader.single_camera=1"
         matcher_cmd = f"colmap exhaustive_matcher --database_path={folder}/database.db"
         mapper_cmd = f"colmap mapper --database_path={folder}/database.db --image_path={folder}/raw --output_path={folder}/sparse"
-        # plenoxels settings (doesn't work good imo)
-        #extractor_cmd = f"colmap feature_extractor --database_path={folder}/database.db --image_path={folder}/raw --ImageReader.single_camera=1 --ImageReader.default_focal_length_factor=0.69388 --SiftExtraction.peak_threshold=0.004 --SiftExtraction.edge_threshold=16"
-        #matcher_cmd = f"colmap exhaustive_matcher --database_path={folder}/database.db --SiftMatching.max_num_matches=132768"
-        #mapper_cmd = f"colmap mapper --database_path={folder}/database.db --image_path={folder}/raw --output_path={folder}/sparse"
         os.system(extractor_cmd)
         os.system(matcher_cmd)
         os.makedirs(folder+"/sparse")
@@ -136,8 +132,12 @@ def visualize():
             plane = Plane(*plane_points[:3].tolist())
 
             #Load camera
-            P = np.loadtxt(pose_path).reshape(4, 4)#world to camera
-            c2w = np.linalg.inv(P)
+            c2w = np.loadtxt(pose_path).reshape(4, 4) # c2w
+            c2w_sym = np.loadtxt(pose_path.replace(".txt","_sym.txt")).reshape(4, 4) # c2w
+            w2c = np.linalg.inv(c2w)
+            w2c_sym = np.linalg.inv(c2w_sym)
+            
+            #c2w = P#np.linalg.inv(P)
             cam_loc = c2w @ np.array([0., 0., 0., 1.])
             cam_loc = cam_loc[:3]
             cam_dir_Z = c2w @ np.array([0., 0., 1., 1.])
@@ -145,9 +145,9 @@ def visualize():
             # load points of bounding box
             bb = np.array(frame_data["car_box_3d_world"])
 
-            P_sym = plane.get_sym_extr(P)
+            #P_sym = plane.get_sym_extr(P)
 
-            c2w_sym = np.linalg.inv(P_sym)
+            #c2w_sym = np.linalg.inv(P_sym)
             cam_loc_sym = c2w_sym @ np.array([0., 0., 0., 1.])
             cam_loc_sym = cam_loc_sym[:3]
             cam_dir_Z_sym = c2w_sym @ np.array([0., 0., 1., 1.])
@@ -205,7 +205,7 @@ def visualize():
             #projection of lidar points to 2D
             camera_intrinsics = np.array(frame_data["camera_intrinsic"])
 
-            temp_coords = P @ lidar_points_w_coords
+            temp_coords = w2c @ lidar_points_w_coords
             lidar_points_c_coords_2D = temp_coords[:3, :] / temp_coords[2, :]
             lidar_points_c_coords_2D = camera_intrinsics @ lidar_points_c_coords_2D
 
@@ -214,7 +214,7 @@ def visualize():
                         lidar_points_c_coords_2D[1, :], color='blue')
 
             #Now symetric
-            temp_coords_sym = P_sym @ lidar_points_w_sym
+            temp_coords_sym = w2c_sym @ lidar_points_w_sym
             lidar_points_c_coords_2D_sym = temp_coords_sym[:3, :] / temp_coords_sym[2, :]
             lidar_points_c_coords_2D_sym = camera_intrinsics @ lidar_points_c_coords_2D_sym
             ax2.scatter(lidar_points_c_coords_2D_sym[0, :],

@@ -13,6 +13,8 @@ dataset_folder = "./dataset/v1.0-mini"
 dataset_version = "v1.0-mini"
 visibility = 4 # 1 (no filter), 2, 3, 4 (only the most visible ones)
 iou_thresh = 0.7 # threshold to match instance seg bbox and nuscenes bbox
+extract_lidar = True
+
 
 if __name__ == "__main__":
     db_util = NuScenesHelper(dataset_version, dataset_folder)
@@ -21,7 +23,6 @@ if __name__ == "__main__":
     out_folder = dataset_folder+"_processed"
     segment_folder = dataset_folder+"_segmented"
     assert os.path.exists(segment_folder), "First you need to run segment_scene.py"
-
     for filename in scene_filenames:
         scene_token, scene_name, samples = db_util.extract_cars_from_scene(filename, visibility)
         scene_folder = os.path.join(out_folder, scene_name+"_"+scene_token)
@@ -47,24 +48,22 @@ if __name__ == "__main__":
                     continue
                 mask = masks[max_id]
                 camera_info = db_util.get_camera_info(car["cam_token"])
-
                 car.update(camera_info)
-                
-                P = np.array(car["P"])
+                P_w2c = np.array(car["P_w2c"])
                 car_box_3d_world = db_util.nusc.get_box(car['anno_token']).corners()
-                car_box_3d_cam = np.ones((4,8)) 
+                car_box_3d_cam = np.ones((4,8))
                 car_box_3d_cam[:3,:] = car_box_3d_world
-                car_box_3d_cam = (P@car_box_3d_cam)[:-1,:].tolist()
+                car_box_3d_cam = (P_w2c@car_box_3d_cam)[:-1,:].tolist()
                 car_box_3d_world = car_box_3d_world.tolist()
                 car.update({"car_box_3d_world":car_box_3d_world, "car_box_3d_cam":car_box_3d_cam})
 
-
-                lidar_info = db_util.get_lidar_info(car["lidar_token"],
-                                                    cam_world_to_cam=camera_info["P"],
-                                                    bounding_box_world=car_box_3d_world,
-                                                    sample_token=sample_token,
-                                                    cam_info=camera_info)
-                car.update(lidar_info)
+                if extract_lidar:
+                    lidar_info = db_util.get_lidar_info(car["lidar_token"],
+                                                        cam_world_to_cam=P_w2c,
+                                                        bounding_box_world=car_box_3d_world,
+                                                        cam_info=camera_info,
+                                                        sample_token=sample_token)
+                    car.update(lidar_info)
 
                 car_box_3d_world = np.array(car_box_3d_world)
                 plane_point_pairs = [[0,1], [2,3], [4,5], [6,7]]
@@ -72,7 +71,6 @@ if __name__ == "__main__":
                 for pair1, pair2 in plane_point_pairs:
                     plane_points.append((car_box_3d_world[:,pair1]+car_box_3d_world[:,pair2])/2)
                 car.update({"cutting_plane":np.array(plane_points).tolist()})
-
                 os.makedirs(car_folder, exist_ok=True)
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)
