@@ -4,7 +4,7 @@ import numpy as np
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud
 from pyquaternion.quaternion import Quaternion
-from nuscenes.utils.geometry_utils import view_points, points_in_box
+from nuscenes.utils.geometry_utils import view_points
 
 from nuscenes_helper.utils import *
 
@@ -14,16 +14,16 @@ class NuScenesHelper:
         self.dataroot = os.path.abspath(dataroot)
         self.nusc = NuScenes(version=version, dataroot=dataroot, verbose=verbose)
         self.frontcam_filename_to_scene_token = reverse_indexing_scene_names(self.nusc)
-    
+
     def get_scene_token(self, frontcam_filename):
         return self.frontcam_filename_to_scene_token[frontcam_filename]
 
     def get_num_scene(self):
         return len(self.nusc.scene)
-    
+
     def get_frame_path(self, filename):
          return os.path.join(self.dataroot, filename)
-     
+
     def extract_cars_from_scene(self, frontcam_filename, visibilities):
         visibilities = [str(i) for i in range(1,visibilities+1)]
         scene_idx = self.nusc._token2ind["scene"][self.get_scene_token(frontcam_filename)]
@@ -48,7 +48,7 @@ class NuScenesHelper:
         return scene_token, scene_name, scene_cars
 
     def get_frame_paths_by_scene(self, frontcam_filename):
-        scene_token = self.get_scene_token(frontcam_filename)        
+        scene_token = self.get_scene_token(frontcam_filename)
         fs = self.nusc.get("scene", scene_token)["first_sample_token"]
         sample = self.nusc.get("sample", fs)
         file_names = []
@@ -71,60 +71,31 @@ class NuScenesHelper:
         calibrated_sensor_token = data["calibrated_sensor_token"]
         height = data["height"]
         width = data["width"]
-        
+
         calibrated_sensor = self.nusc.get("calibrated_sensor", calibrated_sensor_token)
         clb_translation = calibrated_sensor["translation"]
         clb_rotation = calibrated_sensor["rotation"]
         camera_intrinsic = calibrated_sensor["camera_intrinsic"]
-        
+
         ego_pose = self.nusc.get("ego_pose", ego_pose_token)
         ego_rotation = ego_pose["rotation"]
         ego_translation = ego_pose["translation"]
-        
-        # Get the calibrated sensor and ego pose record to get the transformation matrices.
-        # 1st transformation
-        P1 = np.eye(4)
-        R1 = quaternion_rotation_matrix(ego_pose['rotation']).T
-        t1 = np.array(ego_pose['translation']).reshape(3,1)
-        P1[:3,:3] = R1
-        P1[:3,-1] = -(R1@t1).reshape(-1)
-        # 2nd transformation
-        P2 = np.eye(4)
-        R2 = quaternion_rotation_matrix(calibrated_sensor['rotation']).T
-        t2 = np.array(calibrated_sensor['translation']).reshape(3,1)
-        P2[:3,:3] = R2
-        P2[:3,-1] = -(R2@t2).reshape(-1)
-        P = P2@P1
-        
-        
-        ## colmap format fix
-        #P[:3,-1] = -P[:3,:3].T@P[:3,-1]
-        R_w2c = P[:3,:3]
-        t_w2c = P[:3,-1].reshape(3,1)
-        """
-        #print(R_w2c, t_w2c)
-        P = np.linalg.inv(P)
-        R_c2w = P[:3,:3]
-        t_c2w = P[:3,-1].reshape(3,1)
-        print(R_c2w, t_c2w)
-        """
-        R_c2w, t_c2w = R_w2c.T, -R_w2c.T@t_w2c
-        
 
-        #t_world = -R_w2c@t_w2c
-        #[-1.55208194  0.02911663  3.70275983] 8.366715640918061
-        # [ 0.55772764 -0.54403343 10.41659385] 5.8048647975004
-        #cen = np.array([-1.55208194,  0.02911663,  3.70275983])
-        #meddist = 8.366715640918061
-        #t_c2w = (t_c2w - cen[:, None]) * 2 / meddist
-        P = np.concatenate([np.concatenate([R_c2w, t_c2w], 1), np.array([0, 0, 0, 1.0]).\
-            reshape([1, 4])], 0)
-        #P[0:3,2] *= -1 # flip the y and z axis
-        #P[0:3,1] *= -1
-        #P = P[[1,0,2,3],:] # swap y and z
-        #P[2,:] *= -1 # flip whole world upside down
-        #Rt = np.matmul(so3, -r)                                                                                                                                                                                                                                                                                        
-        #P = np.vstack((np.hstack((so3.T, -r.reshape(-1, 1))), [0, 0, 0, 1]))
+        # Get the calibrated sensor and ego pose record to get the transformation matrices.
+        # ego -> world
+        P1 = np.eye(4)
+        R1 = quaternion_rotation_matrix(ego_pose['rotation'])
+        t1 = np.array(ego_pose['translation'])
+        P1[:3,:3] = R1
+        P1[:3,-1] = t1
+        # camera -> ego
+        P2 = np.eye(4)
+        R2 = quaternion_rotation_matrix(calibrated_sensor['rotation'])
+        t2 = np.array(calibrated_sensor['translation'])
+        P2[:3,:3] = R2
+        P2[:3,-1] = t2
+        # camera -> world
+        P_c2w = P1@P2
         ret = {
             "height": height,
             "width": width,
@@ -135,12 +106,13 @@ class NuScenesHelper:
             "camera_intrinsic":camera_intrinsic,
             "ego_rotation":ego_rotation,
             "ego_translation":ego_translation,
-            "P": P.tolist(),
+            "P": P_c2w.tolist(),
+            "P_w2c": np.linalg.inv(P_c2w).tolist(),
             "channel": data["channel"]
                }
         return ret
 
-    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, sample_token=None):
+    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, cam_info, sample_token=None):
         data = self.nusc.get("sample_data", lidar_token)
 
         lidar_filename = "./dataset/v1.0-mini/" + data['filename']#TODO correct how this name is being appended
@@ -174,14 +146,14 @@ class NuScenesHelper:
         ego_to_world = np.eye(4)
         ego_to_world[:3, :3] = R2
         ego_to_world[:3, -1] = t2
-        
+
         lid_to_world = ego_to_world @ lid_to_ego
-        
+
         temp_coords = np.ones_like(lidar_points.points)
         temp_coords[:3, :] = lidar_points.points[:3, :]
         lidar_world = lid_to_world @ temp_coords
-        
-        
+
+
         #Now we select the correct ones
         bb = np.array(bounding_box_world)
         p1 = bb[:, 0]
@@ -279,7 +251,6 @@ class NuScenesHelper:
         }
         return ret
 
-
     def _get_2d_boxes(self, sample_data_token, visibilities):
         """
         Get the 2D annotation records for a given `sample_data_token`.
@@ -353,7 +324,7 @@ class NuScenesHelper:
         for given frame.
         """
         cars = []
-        data = sample_meta["data"]# todo get camera parameters and visibility information
+        data = sample_meta["data"]
         data_lidar_token = data ["LIDAR_TOP"]
         for cam_type, cam_token in data.items():
             if not cam_type.startswith("CAM"):

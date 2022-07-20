@@ -18,7 +18,7 @@ from shapely.geometry import MultiPoint, box
 
 
 class Plane:
-    def __init__(self, p1, p2, p3):
+    def __init__(self, p1, p2, p3, verbose=False):
         p1, p2, p3 = np.array(p1), np.array(p2), np.array(p3)
         v1 = p2 - p3
         v2 = p2 - p1
@@ -27,11 +27,12 @@ class Plane:
         self.normal = normal/np.linalg.norm(normal)
         self.k = self.normal@p1
         self.sym_mat = self.get_sym_mat()
-        print("Normal:", normal)
-        print("k:", self.k)
-        print("S:", self.sym_mat)
-        print()
-    
+        if verbose:
+            print("Normal:", normal)
+            print("k:", self.k)
+            print("S:", self.sym_mat)
+            print()
+
     def angle(self, vec):
         vec = np.array(vec)
         # angle with the normal of plane
@@ -41,8 +42,8 @@ class Plane:
     def dist(self, point):
         # dist from point to plane
         point = np.array(point)
-        return np.abs(point @ self.normal + self.k) 
-    
+        return np.abs(point @ self.normal + self.k)
+
     def get_sym_mat(self):
         n = self.normal
         S_R = np.eye(3)-2*np.outer(n,n)
@@ -51,8 +52,9 @@ class Plane:
         S[:3,:3] = S_R
         S[:3,-1] = S_t
         return S
-    
+
     def get_sym_extr(self, original_ext):
+        # original_ext is expected to be c2w. Returned symetric pose is also c2w.
         original_ext = np.linalg.inv(original_ext)
         P_sym = original_ext@self.sym_mat
         P_sym[0,:] *= -1
@@ -149,25 +151,25 @@ def quaternion_rotation_matrix(Q):
     q1 = Q[1]
     q2 = Q[2]
     q3 = Q[3]
-     
+
     # First row of the rotation matrix
     r00 = 2 * (q0 * q0 + q1 * q1) - 1
     r01 = 2 * (q1 * q2 - q0 * q3)
     r02 = 2 * (q1 * q3 + q0 * q2)
-     
+
     # Second row of the rotation matrix
     r10 = 2 * (q1 * q2 + q0 * q3)
     r11 = 2 * (q0 * q0 + q2 * q2) - 1
     r12 = 2 * (q2 * q3 - q0 * q1)
-     
+
     # Third row of the rotation matrix
     r20 = 2 * (q1 * q3 - q0 * q2)
     r21 = 2 * (q2 * q3 + q0 * q1)
     r22 = 2 * (q0 * q0 + q3 * q3) - 1
-     
+
     # 3x3 rotation matrix
     rot_matrix = np.array([[r00, r01, r02],
                            [r10, r11, r12],
                            [r20, r21, r22]])
-                            
+
     return rot_matrix
