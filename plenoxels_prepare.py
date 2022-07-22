@@ -356,33 +356,50 @@ def visualize3():
 
             mask_a = np.array(mask).astype(np.uint8) * 255
             img_a = np.array(img)
-            plt.imshow(mask_a)
-            plt.show()
-            plt.imshow(img_a)
-            plt.show()
+            #plt.imshow(mask_a)
+            #plt.show()
+            #plt.imshow(img_a)
+            #plt.show()
 
 
 
             pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5) + ".txt")
-            plane_points = np.array(frame_data["cutting_plane"])
-            plane = Plane(*plane_points[:3].tolist())
-
             # Load camera
-            P = np.loadtxt(pose_path).reshape(4, 4)
+
+
+            P = np.loadtxt(pose_path).reshape(4, 4)#c2w
             plane_points = np.array(frame_data["cutting_plane"])
             plane = Plane(*plane_points[:3].tolist())
             P_sym_c2w = plane.get_sym_extr(P)
+            intr_path = os.path.join(colmap_out_folder, "intrinsics.txt")
+            intrinsics = np.loadtxt(intr_path)
 
-            lidar_points_w = np.array(frame_data['lidar_world_in'])
-            lidar_points_w_coords = np.ones_like(lidar_points_w)
-            lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
-            # reflect points on plane
-            lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
-            # Express points in symmetric coordinate system
-            lidar_points_c_sym = np.linalg.inv(P_sym_c2w) @ lidar_points_w_sym
-            # put back intensity value
-            lidar_points_c_sym[-1, :] = lidar_points_w[-1, :]
-            np.savetxt(os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt"), lidar_points_c_sym)
+
+            #camera_oints
+            lidar_points = np.array(frame_data['lidar_cam_in'])
+            lidar_points2D = lidar_points[:3, :] / lidar_points[2:3, :]
+            lidar_points2D = intrinsics[:3, :3] @ lidar_points2D
+            lidar_points2D = lidar_points2D[:2, :].astype(int)
+            plt.imshow(img_a)
+            plt.scatter(lidar_points2D[0, :], lidar_points2D[1, :],c='r',s=0.3)
+            plt.title(str(i).zfill(5))
+            plt.show()
+
+            # lidar_points_w = np.array(frame_data['lidar_world_in'])
+            # lidar_points_w_coords = np.ones_like(lidar_points_w)
+            # lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+            # # reflect points on plane
+            # lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
+            # # Express points in symmetric coordinate system
+            # lidar_points_c_sym = np.linalg.inv(P_sym_c2w) @ lidar_points_w_sym
+            # lidar_points2D_sym = lidar_points_c_sym[:3, :] / lidar_points_c_sym[2:3, :]
+            # lidar_points2D_sym = intrinsics[:3, :3] @ lidar_points2D_sym
+            # lidar_points2D_sym = lidar_points2D_sym[:2, :].astype(int)
+            # img_sym = img[:,::-1,:]
+            # plt.imshow(img_sym)
+            # plt.scatter(lidar_points2D_sym[0, :], lidar_points2D_sym[1, :], c='r', s=0.3)
+            # plt.title(str(i).zfill(5)+"_sym")
+            # plt.show()
 
 
 if __name__ == "__main__":
