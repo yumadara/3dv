@@ -297,11 +297,14 @@ def main():
         scale *= 0.95
         return transform, scale
 
-    T, scale = get_transform(all_poses)
-    all_poses = T @ all_poses
+    #T, scale = get_transform(all_poses)
+    #all_poses = T @ all_poses
 
     R = all_poses[:, :3, :3]
-    t = all_poses[:, :3, 3] * scale
+    t = all_poses[:, :3, 3] #* scale
+    my_scale = 1.
+    t *= my_scale
+
 
     intrins = np.loadtxt(intrin_path)
     focal = (intrins[0, 0] + intrins[1, 1]) * 0.5
@@ -340,6 +343,19 @@ def main():
                              connect=args.seg,
                              color=[1.0, 0.0, 0.0])
 
+    bb_points = np.array([
+        [398.812, 1100.569, 1.977],
+        [399.503, 1102.172, 1.977],
+        [399.503, 1102.172, 0.495],
+        [398.812, 1100.569, 0.495],
+        [403.09473, 1098.72390831, 1.977],
+        [403.785435, 1100.32639238, 1.977],
+        [403.78543, 1100.3263, 0.495],
+        [403.09473, 1098.7239, 0.495]
+    ])
+    bb_points *= my_scale
+    scene.add_points("bb_points", bb_points, color=[1.0, 0.0, 0.0], unlit=True)
+
     if pose_gt_dir is not None:
         print('Loading GT')
         pose_gt_files = sorted([x for x in os.listdir(pose_gt_dir) if x.endswith('.txt')], key=sort_key)
@@ -364,12 +380,13 @@ def main():
         #         t, use_first_k=args.n_cameras_for_procrustes, want_transform=True)
 
         #t_gt, r_gt = transform(t_gt, r_gt)
-        transform = align_procrustes_rt(
-                t_gt[pose_gt_inds], r_gt[pose_gt_inds],
-                t, r, use_first_k=args.n_cameras_for_procrustes, want_transform=True)
+        #transform = align_procrustes_rt(
+        #        t_gt[pose_gt_inds], r_gt[pose_gt_inds],
+        #        t, r, use_first_k=args.n_cameras_for_procrustes, want_transform=True)
 
-        t_gt, r_gt = transform(t_gt, r_gt)
+        #t_gt, r_gt = transform(t_gt, r_gt)
         R_gt = r_gt.reshape(-1, 3, 3)
+        t_gt *= my_scale
         scene.add_camera_frustum(name=f"traj_gt", focal_length=focal,
                                  image_width=image_wh[0],
                                  image_height=image_wh[1],
