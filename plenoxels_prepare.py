@@ -6,12 +6,15 @@ from nuscenes_helper.utils import Plane
 processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/*") + \
      glob.glob("dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/*") 
 processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/30/42641eb6adcb4f8f8def8ef129d9e843"]
+
 use_nuscene_poses = True
 augment = True
 cam_type = None
 extract_lidar=True
 mask_png_ext=False
 visualize_gr = False
+visualize2_gr = False
+visualize3_gr = False
 ##################
 
 
@@ -25,6 +28,7 @@ def preprocess():
         os.makedirs(os.path.join(colmap_out_folder, "raw"), exist_ok=True)
         os.makedirs(os.path.join(colmap_out_folder, "images"), exist_ok=True)
         os.makedirs(os.path.join(colmap_out_folder, "masks"), exist_ok=True)
+        os.makedirs(os.path.join(colmap_out_folder, "intrinsics"), exist_ok=True)
         if use_nuscene_poses:
             os.makedirs(os.path.join(colmap_out_folder, "pose"), exist_ok=True)
         if extract_lidar:
@@ -54,6 +58,7 @@ def preprocess():
                 camera_intrinsic = np.eye(4)
                 camera_intrinsic[:3,:3] = camera_intrinsic_ns
                 np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt"), P)
+                np.savetxt(os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt"), camera_intrinsic)
                 if not os.path.exists(os.path.join(colmap_out_folder, "intrinsics.txt")): # single cam?
                     np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
             if extract_lidar:
@@ -90,6 +95,9 @@ def augment_sym():
             plane = Plane(*plane_points[:3].tolist())
             P_sym_c2w = plane.get_sym_extr(P)
             np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym_c2w)
+            intr_path = os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt")
+            camera_intrinsic = np.loadtxt(intr_path)
+            np.savetxt(intr_path.replace(".txt", "_sym.txt"), camera_intrinsic)#intrinsics do not need conversion
             if extract_lidar:
                 #since P sym needs points in world space need to load the points in world space
                 lidar_points_w = np.array(frame_data['lidar_world_in'])
@@ -128,6 +136,7 @@ def visualize():
         for i, json_path in tqdm.tqdm(enumerate(json_paths)):
             with open(json_path, "r") as f:
                 frame_data = json.load(f)
+
             pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt")
             plane_points = np.array(frame_data["cutting_plane"])
             plane = Plane(*plane_points[:3].tolist())
@@ -201,6 +210,10 @@ def visualize():
             # zz = (-plane.normal[0] * xx - plane.normal[1]*yy - d) * 1. /plane.normal[2]
             #
             # # ax.plot_surface(xx, yy, zz)
+            ax.set_xlabel('$X$', fontsize=20)
+            ax.set_ylabel('$Y$')
+            ax.set_zlabel('$Z$')
+
             plt.show()
 
             #projection of lidar points to 2D
@@ -228,9 +241,173 @@ def visualize():
                     print("Points ", temp_coords[:, j], " and ", temp_coords_sym[:, j], "differ in depth")
 
 
+def visualize2():
+    from mpl_toolkits.mplot3d import Axes3D
+    import matplotlib.pyplot as plt
+
+    for folder in processed_car_folders:
+        car_id = folder.split("/")[-1]
+        colmap_out_folder = os.path.join("/".join(folder.split("/")[:-1]), "colmap_out", car_id)
+        json_paths = sorted(glob.glob(os.path.join(folder, "*.json")))
+        cameras_locs = []
+        cameras_locs_sym = []
+        cameras_dirs_X = []
+        cameras_dirs_Y = []
+        cameras_dirs_Z = []
+        cameras_dirs_Z_sym = []
+        bb_points = []
+        for i, json_path in tqdm.tqdm(enumerate(json_paths)):
+            with open(json_path, "r") as f:
+                frame_data = json.load(f)
+            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt")
+            plane_points = np.array(frame_data["cutting_plane"])
+            plane = Plane(*plane_points[:3].tolist())
+
+            bb = np.array(frame_data["car_box_3d_world"])
+            bb_points.append(bb[:, 0])
+            bb_points.append(bb[:, 1])
+            bb_points.append(bb[:, 2])
+            bb_points.append(bb[:, 3])
+            bb_points.append(bb[:, 4])
+            bb_points.append(bb[:, 5])
+            bb_points.append(bb[:, 6])
+            bb_points.append(bb[:, 7])
+
+
+            #Load camera
+            c2w = np.loadtxt(pose_path).reshape(4, 4)#c2w
+            cam_loc = c2w @ np.array([0., 0., 0., 1.])
+            cam_loc = cam_loc[:3]
+            cam_dir_X = c2w @ np.array([2., 0., 0., 1.])
+            cam_dir_X = cam_dir_X[:3]
+            cam_dir_Y = c2w @ np.array([0., 2., 0., 1.])
+            cam_dir_Y = cam_dir_Y[:3]
+            cam_dir_Z = c2w @ np.array([0., 0., 2., 1.])
+            cam_dir_Z = cam_dir_Z[:3]
+            cameras_locs.append(cam_loc)
+            cameras_dirs_Z.append(cam_dir_Z)
+            cameras_dirs_X.append(cam_dir_X)
+            cameras_dirs_Y.append(cam_dir_Y)
+
+            c2w_sym = plane.get_sym_extr(c2w)
+            cam_loc_sym = c2w_sym @ np.array([0., 0., 0., 1.])
+            cam_loc_sym = cam_loc_sym[:3]
+            cam_dir_Z_sym = c2w_sym @ np.array([0., 0., 2., 1.])
+            cam_dir_Z_sym = cam_dir_Z_sym[:3]
+            cameras_locs_sym.append(cam_loc_sym)
+            cameras_dirs_Z_sym.append(cam_dir_Z_sym)
+
+        cameras_locs = np.stack(cameras_locs, axis=0)
+        cameras_dirs_Z = np.stack(cameras_dirs_Z, axis=0)
+        cameras_dirs_X = np.stack(cameras_dirs_X, axis=0)
+        cameras_dirs_Y = np.stack(cameras_dirs_Y, axis=0)
+        cameras_locs_sym = np.stack(cameras_locs_sym, axis=0)
+        cameras_dirs_Z_sym = np.stack(cameras_dirs_Z_sym, axis=0)
+        bb_points = np.stack(bb_points, axis=0)
+
+
+        print(bb_points.mean(axis=0))
+        print("______")
+        print(bb_points[0])
+        print(bb_points[1])
+        print(bb_points[2])
+        print(bb_points[3])
+        print(bb_points[4])
+        print(bb_points[5])
+        print(bb_points[6])
+        print(bb_points[7])
+
+
+        # visualization
+        fig = plt.figure()
+        # Add a 3d axis to the figure
+        ax = fig.add_subplot(111, projection='3d')
+
+        ax.set_xlabel('$X$', fontsize=20)
+        ax.set_ylabel('$Y$')
+        ax.set_zlabel('$Z$')
+
+        #placing cameras
+        ax.scatter(bb_points[:, 0], bb_points[:, 1], bb_points[:, 2], color='r')
+        ax.scatter(cameras_locs[:, 0], cameras_locs[:, 1], cameras_locs[:, 2], color="b")
+        ax.scatter(cameras_locs_sym[:, 0], cameras_locs_sym[:, 1], cameras_locs_sym[:, 2], color="m")
+        #ax.scatter(cameras_dirs_Z[:, 0], cameras_dirs_Z[:, 1], cameras_dirs_Z[:, 2], color='y')
+        for ti in range(len(cameras_locs)):
+            ax.plot3D(*zip(cameras_locs[ti], cameras_dirs_X[ti]), color='r')
+            ax.plot3D(*zip(cameras_locs[ti], cameras_dirs_Y[ti]), color='g')
+            ax.plot3D(*zip(cameras_locs[ti], cameras_dirs_Z[ti]), color='b')
+        for ti in range(len(cameras_locs_sym)):
+            ax.plot3D(*zip(cameras_locs_sym[ti], cameras_dirs_Z_sym[ti]), color='g')
+
+
+        plt.show()
+
+def visualize3():
+    import matplotlib.pyplot as plt
+
+    for folder in processed_car_folders:
+        car_id = folder.split("/")[-1]
+        colmap_out_folder = os.path.join("/".join(folder.split("/")[:-1]), "colmap_out", car_id)
+        json_paths = sorted(glob.glob(os.path.join(folder, "*.json")))
+        for i, json_path in tqdm.tqdm(enumerate(json_paths)):
+            with open(json_path, "r") as f:
+                frame_data = json.load(f)
+
+            filename = frame_data["filename"].split("/")[-1]
+            img_path = os.path.join("/".join(folder.split("/")[:-1]), "images", filename)
+            mask = cv2.imread(json_path.replace(".json", ".png")) > 127
+            img = cv2.imread(img_path) * mask + 255 * np.logical_not(mask)
+            mask_a = np.array(mask).astype(np.uint8) * 255
+            img_a = np.array(img)
+
+            # Load camera
+            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5) + ".txt")
+            intr_path = os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt")
+            P = np.loadtxt(pose_path).reshape(4, 4)  # c2w
+            intrinsic = np.loadtxt(intr_path)
+            #plane_points = np.array(frame_data["cutting_plane"])
+            #plane = Plane(*plane_points[:3].tolist())
+            #P_sym_c2w = plane.get_sym_extr(P)
+
+            #camera_points
+            lidar_path = os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + ".txt")
+            #lidar_points = np.array(frame_data['lidar_cam_in'])
+            lidar_points = np.loadtxt(lidar_path).reshape(4, -1)
+            lidar_points2D = lidar_points[:3, :] / lidar_points[2:3, :]
+
+            lidar_points2D = intrinsic[:3, :3] @ lidar_points2D
+            lidar_points2D = lidar_points2D[:2, :].astype(int)
+            plt.imshow(img_a)
+            plt.scatter(lidar_points2D[0, :], lidar_points2D[1, :],c='r',s=0.3)
+            plt.title(str(i).zfill(5))
+            plt.show()
+
+            # lidar_points_w = np.array(frame_data['lidar_world_in'])
+            # lidar_points_w_coords = np.ones_like(lidar_points_w)
+            # lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+            # # reflect points on plane
+            # lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
+            # # Express points in symmetric coordinate system
+            # lidar_points_c_sym = np.linalg.inv(P_sym_c2w) @ lidar_points_w_sym
+            # lidar_points2D_sym = lidar_points_c_sym[:3, :] / lidar_points_c_sym[2:3, :]
+            # lidar_points2D_sym = intrinsics[:3, :3] @ lidar_points2D_sym
+            # lidar_points2D_sym = lidar_points2D_sym[:2, :].astype(int)
+            # img_sym = img[:,::-1,:]
+            # plt.imshow(img_sym)
+            # plt.scatter(lidar_points2D_sym[0, :], lidar_points2D_sym[1, :], c='r', s=0.3)
+            # plt.title(str(i).zfill(5)+"_sym")
+            # plt.show()
+
+
 if __name__ == "__main__":
     if visualize_gr:
         visualize()
+        exit()
+    if visualize2_gr:
+        visualize2()
+        exit()
+    if visualize3_gr:
+        visualize3()
         exit()
 
     out_folders = preprocess()

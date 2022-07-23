@@ -122,7 +122,7 @@ class NuScenesHelper:
         sample = self.nusc.get('sample', sample_token)
         #lidar_points_or = LidarPointCloud.from_file(lidar_filename)
         lidar_points, _ = LidarPointCloud.from_file_multisweep(self.nusc, sample, 'LIDAR_TOP', 'LIDAR_TOP',
-                                                                     nsweeps=3)
+                                                                     nsweeps=1)
 
         #print("____")
         #print(lidalidar_points_orr_points_or.points.shape)

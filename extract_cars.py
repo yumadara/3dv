@@ -88,6 +88,7 @@ if __name__ == "__main__":
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)
                 cv2.imwrite(os.path.join(car_folder, car["anno_token"]+".png"), mask.astype("uint8")*255)
+                cv2.imwrite(os.path.join(car_folder, car["anno_token"]+"_im.png"), frame)
                 with open(os.path.join(car_folder, car["anno_token"]+".json"), "w+") as f:
                     json.dump(car, f)
 
