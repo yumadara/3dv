@@ -3,9 +3,8 @@ import numpy as np
 from nuscenes_helper.utils import Plane
 
 ### Parameters ###
-# path original del primer ejemplo de erick
 #processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/61dd7d03d7ad466d89f901ed64e2c0dd"]
-# nuevo path puesto por miguel
+
 processed_car_folders = ["dataset/v1.0-trainval01_blobs_processed/scene-0099_5af9c7f124d84e7e9ac729fafa40ea01/27df1b26d07343a9b2c7b85e3b81b13f"]
 #processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/*")
 use_nuscene_poses = True
