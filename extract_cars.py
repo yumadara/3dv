@@ -8,9 +8,11 @@ import torchvision.ops.boxes as bops
 from nuscenes_helper.nuscenes import NuScenesHelper
 
 
-scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg"]
-dataset_folder = "./dataset/v1.0-mini"
-dataset_version = "v1.0-mini"
+scene_filenames = ["n008-2018-08-01-15-16-36-0400__CAM_FRONT__1533151417612404.jpg"]
+# dataset_folder = "./dataset/v1.0-mini"
+# dataset_version = "v1.0-mini"
+dataset_folder = "./dataset/v1.0-trainval01_blobs"
+dataset_version = "v1.0-trainval"
 visibility = 4 # 1 (no filter), 2, 3, 4 (only the most visible ones)
 iou_thresh = 0.7 # threshold to match instance seg bbox and nuscenes bbox
 extract_lidar = True
@@ -75,5 +77,6 @@ if __name__ == "__main__":
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)
                 cv2.imwrite(os.path.join(car_folder, car["anno_token"]+".png"), mask.astype("uint8")*255)
+                cv2.imwrite(os.path.join(car_folder, car["anno_token"]+"_im.png"), frame)
                 with open(os.path.join(car_folder, car["anno_token"]+".json"), "w+") as f:
                     json.dump(car, f)
