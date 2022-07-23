@@ -1,4 +1,5 @@
-import os, json, tqdm
+import os, json, tqdm, glob
+import shutil
 
 import cv2
 import torch
@@ -6,18 +7,26 @@ import numpy as np
 import torchvision.ops.boxes as bops
 
 from nuscenes_helper.nuscenes import NuScenesHelper
+from nuscenes_helper.utils import find_count_category_name
 
 
-scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg"]
-dataset_folder = "./dataset/v1.0-mini"
-dataset_version = "v1.0-mini"
+scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg",]
+                   #"n008-2018-08-01-15-16-36-0400__CAM_FRONT__1533151603512404.jpg",
+                   #"n008-2018-08-27-11-48-51-0400__CAM_FRONT__1535385092112404.jpg"] 
+# "n008-2018-05-21-11-06-59-0400__CAM_FRONT__1526915452012476.jpg"
+
+dataset_folder = "./dataset/v1.0-mini" # "./dataset/v1.0-trainval02_blobs"
+dataset_version = "v1.0-mini" # "v1.0-trainval" 
 visibility = 4 # 1 (no filter), 2, 3, 4 (only the most visible ones)
 iou_thresh = 0.7 # threshold to match instance seg bbox and nuscenes bbox
 extract_lidar = True
+num_of_view_splits = [5, 15, 25, 35] # cars are categorized as 10-, 10-20, 20-30, ... 50+
+min_size_filter = 0.002 # percentage of the image size, min 10% (0.1) means min 10 pixels in a 10x10 image
 
 
 if __name__ == "__main__":
     db_util = NuScenesHelper(dataset_version, dataset_folder)
+    processed_cars = []
     if dataset_folder[-1] == "/":
         dataset_folder = dataset_folder[:-1]
     out_folder = dataset_folder+"_processed"
@@ -47,6 +56,9 @@ if __name__ == "__main__":
                 if ious[max_id]<iou_thresh:
                     continue
                 mask = masks[max_id]
+                car_size = mask.sum()/(mask.shape[0]*mask.shape[1])
+                if min_size_filter is not None and car_size < min_size_filter:
+                    continue
                 camera_info = db_util.get_camera_info(car["cam_token"])
                 car.update(camera_info)
                 P_w2c = np.array(car["P_w2c"])
@@ -71,9 +83,19 @@ if __name__ == "__main__":
                 for pair1, pair2 in plane_point_pairs:
                     plane_points.append((car_box_3d_world[:,pair1]+car_box_3d_world[:,pair2])/2)
                 car.update({"cutting_plane":np.array(plane_points).tolist()})
+                processed_cars.append(car_folder)
                 os.makedirs(car_folder, exist_ok=True)
                 os.makedirs(image_folder, exist_ok=True)
                 cv2.imwrite(os.path.join(image_folder, im_path.split("/")[-1]), frame)
                 cv2.imwrite(os.path.join(car_folder, car["anno_token"]+".png"), mask.astype("uint8")*255)
                 with open(os.path.join(car_folder, car["anno_token"]+".json"), "w+") as f:
                     json.dump(car, f)
+
+    # categorize cars
+    processed_cars = list(set(processed_cars))
+    for car_folder in processed_cars:
+        num_views = len(glob.glob(os.path.join(car_folder, "*.json")))
+        cat_name = find_count_category_name(num_of_view_splits, num_views)
+        new_folder = "/".join(car_folder.split("/")[:-1])+f"/{cat_name}"
+        os.makedirs(new_folder, exist_ok=True)
+        shutil.move(car_folder, new_folder)

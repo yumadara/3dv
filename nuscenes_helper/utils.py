@@ -62,6 +62,15 @@ class Plane:
         return P_sym
 
 
+def find_count_category_name(splits, num_view):
+    splits = sorted(splits)
+    for i in range(len(splits)):
+        f = splits[i]
+        if num_view <= f:
+            return str(f)
+    return str(f)+"+"
+
+
 def post_process_coords(corner_coords: List,
                         imsize: Tuple[int, int] = (1600, 900)) -> Union[Tuple[float, float, float, float], None]:
     """
