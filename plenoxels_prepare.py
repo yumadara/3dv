@@ -12,7 +12,7 @@ extract_lidar=True
 mask_png_ext=False
 visualize_gr = False
 visualize2_gr = False
-visualize3_gr = True
+visualize3_gr = False
 ##################
 
 
@@ -26,6 +26,7 @@ def preprocess():
         os.makedirs(os.path.join(colmap_out_folder, "raw"), exist_ok=True)
         os.makedirs(os.path.join(colmap_out_folder, "images"), exist_ok=True)
         os.makedirs(os.path.join(colmap_out_folder, "masks"), exist_ok=True)
+        os.makedirs(os.path.join(colmap_out_folder, "intrinsics"), exist_ok=True)
         if use_nuscene_poses:
             os.makedirs(os.path.join(colmap_out_folder, "pose"), exist_ok=True)
         if extract_lidar:
@@ -55,6 +56,7 @@ def preprocess():
                 camera_intrinsic = np.eye(4)
                 camera_intrinsic[:3,:3] = camera_intrinsic_ns
                 np.savetxt(os.path.join(colmap_out_folder, "pose", str(i).zfill(5)+".txt"), P)
+                np.savetxt(os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt"), camera_intrinsic)
                 if not os.path.exists(os.path.join(colmap_out_folder, "intrinsics.txt")): # single cam?
                     np.savetxt(os.path.join(colmap_out_folder, "intrinsics.txt"), camera_intrinsic)
             if extract_lidar:
@@ -91,6 +93,9 @@ def augment_sym():
             plane = Plane(*plane_points[:3].tolist())
             P_sym_c2w = plane.get_sym_extr(P)
             np.savetxt(pose_path.replace(".txt", "_sym.txt"), P_sym_c2w)
+            intr_path = os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt")
+            camera_intrinsic = np.loadtxt(intr_path)
+            np.savetxt(intr_path.replace(".txt", "_sym.txt"), camera_intrinsic)#intrinsics do not need conversion
             if extract_lidar:
                 #since P sym needs points in world space need to load the points in world space
                 lidar_points_w = np.array(frame_data['lidar_world_in'])
@@ -336,7 +341,6 @@ def visualize2():
         plt.show()
 
 def visualize3():
-    from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.pyplot as plt
 
     for folder in processed_car_folders:
@@ -348,37 +352,28 @@ def visualize3():
                 frame_data = json.load(f)
 
             filename = frame_data["filename"].split("/")[-1]
-            frame_cam_type = filename.split("__")[-2]
             img_path = os.path.join("/".join(folder.split("/")[:-1]), "images", filename)
-            ext = filename.split(".")[-1]
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
             img = cv2.imread(img_path) * mask + 255 * np.logical_not(mask)
-
             mask_a = np.array(mask).astype(np.uint8) * 255
             img_a = np.array(img)
-            #plt.imshow(mask_a)
-            #plt.show()
-            #plt.imshow(img_a)
-            #plt.show()
 
-
-
-            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5) + ".txt")
             # Load camera
+            pose_path = os.path.join(colmap_out_folder, "pose", str(i).zfill(5) + ".txt")
+            intr_path = os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt")
+            P = np.loadtxt(pose_path).reshape(4, 4)  # c2w
+            intrinsic = np.loadtxt(intr_path)
+            #plane_points = np.array(frame_data["cutting_plane"])
+            #plane = Plane(*plane_points[:3].tolist())
+            #P_sym_c2w = plane.get_sym_extr(P)
 
-
-            P = np.loadtxt(pose_path).reshape(4, 4)#c2w
-            plane_points = np.array(frame_data["cutting_plane"])
-            plane = Plane(*plane_points[:3].tolist())
-            P_sym_c2w = plane.get_sym_extr(P)
-            intr_path = os.path.join(colmap_out_folder, "intrinsics.txt")
-            intrinsics = np.loadtxt(intr_path)
-
-
-            #camera_oints
-            lidar_points = np.array(frame_data['lidar_cam_in'])
+            #camera_points
+            lidar_path = os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + ".txt")
+            #lidar_points = np.array(frame_data['lidar_cam_in'])
+            lidar_points = np.loadtxt(lidar_path).reshape(4, -1)
             lidar_points2D = lidar_points[:3, :] / lidar_points[2:3, :]
-            lidar_points2D = intrinsics[:3, :3] @ lidar_points2D
+
+            lidar_points2D = intrinsic[:3, :3] @ lidar_points2D
             lidar_points2D = lidar_points2D[:2, :].astype(int)
             plt.imshow(img_a)
             plt.scatter(lidar_points2D[0, :], lidar_points2D[1, :],c='r',s=0.3)
