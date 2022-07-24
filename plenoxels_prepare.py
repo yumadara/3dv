@@ -3,9 +3,20 @@ import numpy as np
 from nuscenes_helper.utils import Plane
 
 ### Parameters ###
-processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/*") + \
-     glob.glob("dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/*") 
-processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/static/25/61dd7d03d7ad466d89f901ed64e2c0dd"]
+# processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/*") + \
+#      glob.glob("dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/*")
+# processed_car_folders = [
+#     "dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/static/25/61dd7d03d7ad466d89f901ed64e2c0dd"
+# ]
+
+processed_car_folders = [
+    #"dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/static/5/96c353e8f14d4a63ba2b844d43cffc42",
+    #"dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/static/5/358ab7cee6b149928bc640a47e6a29a8",
+    "dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/static/15/8e7b90107c7d43d9baaa38ad64933993",
+    #"dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/static/15/eaaf60765ee8478f8e0bd4942571c6fb",
+    #"dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/static/25/61dd7d03d7ad466d89f901ed64e2c0dd",
+    #"dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/static/25/f15b074ac8ec45f290fc945a9b16ed0d"
+]
 
 use_nuscene_poses = True
 augment = True
@@ -14,7 +25,7 @@ extract_lidar=True
 mask_png_ext=False
 visualize_gr = False
 visualize2_gr = False
-visualize3_gr = False
+visualize3_gr = True
 ##################
 
 def preprocess():
@@ -353,9 +364,10 @@ def visualize3():
                 frame_data = json.load(f)
 
             filename = frame_data["filename"].split("/")[-1]
-            img_path = os.path.join("/".join(folder.split("/")[:-1]), "images", filename)
+            img_path = os.path.join("/".join(folder.split("/")[:-3]), "images", filename)
             mask = cv2.imread(json_path.replace(".json", ".png")) > 127
-            img = cv2.imread(img_path) * mask + 255 * np.logical_not(mask)
+            inp_img = cv2.imread(img_path)
+            img = inp_img * mask + 255 * np.logical_not(mask)
             mask_a = np.array(mask).astype(np.uint8) * 255
             img_a = np.array(img)
 
@@ -364,9 +376,6 @@ def visualize3():
             intr_path = os.path.join(colmap_out_folder, "intrinsics", str(i).zfill(5) + ".txt")
             P = np.loadtxt(pose_path).reshape(4, 4)  # c2w
             intrinsic = np.loadtxt(intr_path)
-            #plane_points = np.array(frame_data["cutting_plane"])
-            #plane = Plane(*plane_points[:3].tolist())
-            #P_sym_c2w = plane.get_sym_extr(P)
 
             #camera_points
             lidar_path = os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + ".txt")
@@ -381,21 +390,20 @@ def visualize3():
             plt.title(str(i).zfill(5))
             plt.show()
 
-            # lidar_points_w = np.array(frame_data['lidar_world_in'])
-            # lidar_points_w_coords = np.ones_like(lidar_points_w)
-            # lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
-            # # reflect points on plane
-            # lidar_points_w_sym = plane.sym_mat @ lidar_points_w_coords
-            # # Express points in symmetric coordinate system
-            # lidar_points_c_sym = np.linalg.inv(P_sym_c2w) @ lidar_points_w_sym
-            # lidar_points2D_sym = lidar_points_c_sym[:3, :] / lidar_points_c_sym[2:3, :]
-            # lidar_points2D_sym = intrinsics[:3, :3] @ lidar_points2D_sym
-            # lidar_points2D_sym = lidar_points2D_sym[:2, :].astype(int)
-            # img_sym = img[:,::-1,:]
-            # plt.imshow(img_sym)
-            # plt.scatter(lidar_points2D_sym[0, :], lidar_points2D_sym[1, :], c='r', s=0.3)
-            # plt.title(str(i).zfill(5)+"_sym")
-            # plt.show()
+            lidar_points_w = np.array(frame_data['lidar_world_in'])
+            lidar_points_w_coords = np.ones_like(lidar_points_w)
+            lidar_points_w_coords[:3, :] = lidar_points_w[:3, :]
+            # reflected points on plane
+            lidar_sym_path = os.path.join(colmap_out_folder, "lidar", str(i).zfill(5) + "_sym.txt")
+            lidar_points_c_sym = np.loadtxt(lidar_sym_path).reshape(4, -1)
+            lidar_points2D_sym = lidar_points_c_sym[:3, :] / lidar_points_c_sym[2:3, :]
+            lidar_points2D_sym = intrinsic[:3, :3] @ lidar_points2D_sym
+            lidar_points2D_sym = lidar_points2D_sym[:2, :].astype(int)
+            img_sym = img[:,::-1,:]
+            plt.imshow(img_sym)
+            plt.scatter(lidar_points2D_sym[0, :], lidar_points2D_sym[1, :], c='r', s=0.3)
+            plt.title(str(i).zfill(5)+"_sym")
+            plt.show()
 
 
 if __name__ == "__main__":

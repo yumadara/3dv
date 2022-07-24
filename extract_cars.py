@@ -11,11 +11,19 @@ from nuscenes_helper.nuscenes import NuScenesHelper
 from nuscenes_helper.utils import find_count_category_name
 
 
-scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg",]
 #scene_filenames = ["n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg",]
-                   #"n008-2018-08-01-15-16-36-0400__CAM_FRONT__1533151603512404.jpg",
-                   #"n008-2018-08-27-11-48-51-0400__CAM_FRONT__1535385092112404.jpg"] 
-# "n008-2018-05-21-11-06-59-0400__CAM_FRONT__1526915452012476.jpg"
+scene_filenames = [
+    #'n015-2018-07-24-11-22-45+0800__CAM_FRONT__1532402927612460.jpg',
+    #'n008-2018-08-01-15-16-36-0400__CAM_FRONT__1533151603512404.jpg',
+ #'n008-2018-08-28-16-43-51-0400__CAM_FRONT__1535489296012404.jpg',
+ #'n008-2018-08-27-11-48-51-0400__CAM_FRONT__1535385092112404.jpg',
+  'n008-2018-08-30-15-16-55-0400__CAM_FRONT__1535657108262404.jpg',
+  'n015-2018-10-02-10-50-40+0800__CAM_FRONT__1538448744412460.jpg',
+  'n015-2018-10-08-15-36-50+0800__CAM_FRONT__1538984233512470.jpg',
+  'n015-2018-11-21-19-38-26+0800__CAM_FRONT__1542800367912460.jpg',
+  'n015-2018-11-21-19-38-26+0800__CAM_FRONT__1542800847912460.jpg',
+  'n015-2018-11-21-19-38-26+0800__CAM_FRONT__1542800987912460.jpg'
+]
 
 dataset_folder = "./dataset/v1.0-mini" # "./dataset/v1.0-trainval02_blobs"
 dataset_version = "v1.0-mini" # "v1.0-trainval" 
