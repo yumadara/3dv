@@ -43,10 +43,24 @@ def closest_point_2_lines(oa, da, ob, db): # returns point closest to both rays 
 
 if __name__ == "__main__":
     AABB_SCALE = 2
-    run_split = False
-    run_transparent = False
-    car_folders = glob.glob("*_processed/*/colmap_out/*")
+    run_split = True
+    #car_folders = glob.glob("*_processed/*/colmap_out/*") 
+    car_folders = ["v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/static/25/colmap_out/61dd7d03d7ad466d89f901ed64e2c0dd"]
     for car_folder in car_folders:
+        # transparency        
+        images = glob.glob(os.path.join(car_folder, "images", "*"))
+        os.makedirs(os.path.join(car_folder, "transparent_images"))
+        for imgp in images:
+            im_name = imgp.split("/")[-1].replace(".jpg", ".png")
+            image_bgr = cv2.imread(imgp)
+            mask_image = cv2.imread(imgp.replace("images","masks"))
+            h, w, c = image_bgr.shape
+            image_bgra = np.concatenate([image_bgr, np.full((h, w, 1), 255, dtype=np.uint8)], 
+                                        axis=-1)
+            white = np.all(mask_image != [255, 255, 255], axis=-1)
+            image_bgra[white, -1] = 0
+            cv2.imwrite(os.path.join(car_folder, "transparent_images", im_name), image_bgra)
+
         ## split
         if run_split:
             images = glob.glob(os.path.join(car_folder, "images", "*"))
@@ -58,27 +72,16 @@ if __name__ == "__main__":
                 im_name = imgp.split("/")[-1]
                 posep = imgp.replace("images", "pose").replace(".jpg", ".txt")
                 pose_name = posep.split("/")[-1]
+                trans_p = imgp.replace("images", "transparent_images").replace(".jpg", ".png")
+                trans_name = trans_p.split("/")[-1]
                 if i in train_idx:
                     os.rename(imgp, os.path.join(car_folder, "images", "0_"+im_name))
                     os.rename(posep, os.path.join(car_folder, "pose", "0_"+pose_name))
+                    os.rename(trans_p, os.path.join(car_folder, "transparent_images", "0_"+trans_name))
                 else:
                     os.rename(imgp, os.path.join(car_folder, "images", "1_"+im_name))
                     os.rename(posep, os.path.join(car_folder, "pose", "1_"+pose_name))
-        
-        # transparency        
-        images = glob.glob(os.path.join(car_folder, "images", "*"))
-        poses = glob.glob(os.path.join(car_folder, "pose", "*"))
-        if run_transparent:
-            os.makedirs(os.path.join(car_folder, "transparent_images"))
-            for imgp in images:
-                im_name = imgp.split("/")[-1].replace(".jpg", ".png")
-                image_bgr = cv2.imread(imgp)
-                h, w, c = image_bgr.shape
-                image_bgra = np.concatenate([image_bgr, np.full((h, w, 1), 255, dtype=np.uint8)], 
-                                            axis=-1)
-                white = np.all(image_bgr == [255, 255, 255], axis=-1)
-                image_bgra[white, -1] = 0
-                cv2.imwrite(os.path.join(car_folder, "transparent_images", im_name), image_bgra)
+                    os.rename(trans_p, os.path.join(car_folder, "transparent_images", "1_"+trans_name))
 
         # ngp poses
         os.makedirs(os.path.join(car_folder, "ngp_pose"), exist_ok=True)
@@ -109,6 +112,7 @@ if __name__ == "__main__":
             "frames": [],
         }
         up = np.zeros(3)
+        poses = glob.glob(os.path.join(car_folder, "pose", "*"))
         for pose in poses:
             c2w = np.loadtxt(pose)
             im_path = pose.replace("pose","transparent_images").replace(".txt", ".png")
