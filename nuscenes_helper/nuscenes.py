@@ -112,23 +112,14 @@ class NuScenesHelper:
                }
         return ret
 
-    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, cam_info, sample_token=None):
+    def get_lidar_info(self, lidar_token, cam_world_to_cam, bounding_box_world, N_low_limit, cam_info, sample_token=None):
         data = self.nusc.get("sample_data", lidar_token)
-
-        lidar_filename = "./dataset/v1.0-mini/" + data['filename']#TODO correct how this name is being appended
-        #print(lidar_filename)
 
         #4xn
         sample = self.nusc.get('sample', sample_token)
-        #lidar_points_or = LidarPointCloud.from_file(lidar_filename)
         lidar_points, _ = LidarPointCloud.from_file_multisweep(self.nusc, sample, 'LIDAR_TOP', 'LIDAR_TOP',
                                                                      nsweeps=1)
 
-        #print("____")
-        #print(lidalidar_points_orr_points_or.points.shape)
-        #print("vs")
-        #print(sample_token)
-        #print(lidar_points.points.shape)
 
         #First we transform the points to world coordinate ((lidar->ego) and then (ego->world))
         calibrated_sensor_token = data["calibrated_sensor_token"]
@@ -189,13 +180,15 @@ class NuScenesHelper:
         lidar_world[-1, :] = lidar_points.points[-1, :]
 
         _, N_in = lidar_world_in.shape
-
-        #print("but in")
-        #print((4, N_in))
-
         lidar_lidar_in = lidar_points.points[:, mask]
         lidar_point_in = LidarPointCloud(lidar_lidar_in)
-        if sample_token is not None and N_in < 5:#N_in > 400 and N_in < 500:
+
+        if N_in >= N_low_limit:
+            can_be_used = True
+        else:
+            can_be_used = False
+
+        """if sample_token is not None and not can_be_used:#last check is to still get a warning
             #from mpl_toolkits.mplot3d import Axes3D
             #import matplotlib.pyplot as plt
             # fig = plt.figure()
@@ -240,7 +233,7 @@ class NuScenesHelper:
             #                                      pc_at_sensor_coords=lidar_point_in)
             #self.nusc.render_sample_data(sample['data']['CAM_FRONT'])
             #self.nusc.render_sample_data(sample['data']['LIDAR_TOP'], underlay_map=True)
-            #self.nusc.render_sample_data(sample['data']['LIDAR_TOP'], nsweeps=10, underlay_map=True)
+            #self.nusc.render_sample_data(sample['data']['LIDAR_TOP'], nsweeps=10, underlay_map=True)"""
 
 
         ret = {
@@ -249,7 +242,7 @@ class NuScenesHelper:
             "lidar_cam_in":lidar_cam_in.tolist(),
             "lidar_world_all":lidar_world.tolist()
         }
-        return ret
+        return ret, can_be_used
 
     def _get_2d_boxes(self, sample_data_token, visibilities):
         """

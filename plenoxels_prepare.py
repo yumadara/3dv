@@ -5,7 +5,7 @@ from nuscenes_helper.utils import Plane
 ### Parameters ###
 processed_car_folders = glob.glob("dataset/v1.0-mini_processed/scene-0103_fcbccedd61424f1b85dcbf8f897f9754/*") + \
      glob.glob("dataset/v1.0-mini_processed/scene-0655_bebf5f5b2a674631ab5c88fd1aa9e87a/*") 
-processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/30/42641eb6adcb4f8f8def8ef129d9e843"]
+processed_car_folders = ["dataset/v1.0-mini_processed/scene-0061_cc8c0bf57f984915a77078b10eb33198/static/25/61dd7d03d7ad466d89f901ed64e2c0dd"]
 
 use_nuscene_poses = True
 augment = True
@@ -16,7 +16,6 @@ visualize_gr = False
 visualize2_gr = False
 visualize3_gr = False
 ##################
-
 
 def preprocess():
     out = []
@@ -40,7 +39,7 @@ def preprocess():
             frame_cam_type = filename.split("__")[-2]
             if cam_type is not None and frame_cam_type != cam_type:
                 continue
-            img_path = os.path.join("/".join(folder.split("/")[:-2]), "images", filename)
+            img_path = os.path.join("/".join(folder.split("/")[:-3]), "images", filename)
             ext = filename.split(".")[-1]
             new_path = os.path.join(colmap_out_folder, "raw", str(i).zfill(5)+"."+ext)
             new_path_masked = os.path.join(colmap_out_folder, "images", str(i).zfill(5)+"."+ext)
@@ -79,7 +78,7 @@ def augment_sym():
             with open(json_path, "r") as f:
                 frame_data = json.load(f)
             filename = frame_data["filename"].split("/")[-1]
-            img_path = os.path.join("/".join(folder.split("/")[:-2]), "images", filename)
+            img_path = os.path.join("/".join(folder.split("/")[:-3]), "images", filename)
             ext = filename.split(".")[-1]
             new_path_masked = os.path.join(colmap_out_folder, "images", str(i).zfill(5)+"."+ext)
             mask_path = os.path.join(colmap_out_folder, "masks", str(i).zfill(5)+"."+ext)
